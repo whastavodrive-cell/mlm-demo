@@ -85,7 +85,7 @@ export default function Footer() {
       </div>
       <div className="border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">© 2024 {companyName}. Todos los derechos reservados.</p>
+          <p className="text-sm text-muted-foreground">© 2026 {companyName}. Todos los derechos reservados.</p>
           <p className="text-xs text-muted-foreground">Hecho con amor en Lima, Perú 🇵🇪</p>
         </div>
       </div>
