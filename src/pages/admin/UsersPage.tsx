@@ -18,10 +18,12 @@ interface UserRow {
   created_at: string;
   phone?: string;
   sponsor_id?: string;
+  avatar_url?: string;
 }
 
 interface PlanOption { slug: string; name: string; }
 interface RankOption { slug: string; name: string; }
+interface CustomRoleOption { name: string; label: string; color: string; }
 
 const ROLES = ['user', 'inspector', 'support', 'admin', 'super_admin'];
 const STATUSES = ['active', 'suspended', 'pending'];
@@ -103,11 +105,18 @@ function Select({
   );
 }
 
-function UserAvatar({ user }: { user: UserRow }) {
+function UserAvatar({ user, size = 'md' }: { user: UserRow; size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-9 h-9 text-xs';
   const initials = (user.full_name || user.email || '?')
     .split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  if (user.avatar_url) {
+    return (
+      <img src={user.avatar_url} alt={user.full_name}
+        className={cn(dim, 'rounded-full object-cover border border-border flex-shrink-0')} />
+    );
+  }
   return (
-    <div className="w-9 h-9 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
+    <div className={cn(dim, 'rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center font-bold text-primary flex-shrink-0')}>
       {initials}
     </div>
   );
@@ -117,12 +126,13 @@ type ModalMode = 'view' | 'edit' | 'create' | null;
 
 // ── User Modal ──
 function UserModal({
-  mode, user, plans, ranks, onClose, onSave,
+  mode, user, plans, ranks, customRoles, onClose, onSave,
 }: {
   mode: ModalMode;
   user: UserRow | null;
   plans: PlanOption[];
   ranks: RankOption[];
+  customRoles: CustomRoleOption[];
   onClose: () => void;
   onSave: (data: Partial<UserRow> & { _newPassword?: string }) => Promise<void>;
 }) {
@@ -134,6 +144,7 @@ function UserModal({
   );
   const [saving, setSaving] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const readOnly = mode === 'view';
 
@@ -151,6 +162,22 @@ function UserModal({
       .replace(/[^a-z0-9_\s]/g, '').trim().replace(/\s+/g, '_');
     setForm(p => ({ ...p, username: auto }));
   }, [form.full_name, mode]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !form.id) return;
+    if (file.size > 3 * 1024 * 1024) { toast.error('Máx 3MB'); return; }
+    setAvatarUploading(true);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${form.id}/avatar.${ext}`;
+    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (upErr) { toast.error('Error al subir imagen'); setAvatarUploading(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+    await supabase.from('profiles').update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', form.id as string);
+    setForm(p => ({ ...p, avatar_url: publicUrl }));
+    toast.success('Foto de perfil actualizada');
+    setAvatarUploading(false);
+  };
 
   const set = (key: keyof UserRow) => (val: string) => setForm(p => ({ ...p, [key]: val }));
 
@@ -188,6 +215,76 @@ function UserModal({
 
           {/* Name + Email */}
           <div className="grid grid-cols-1 gap-4">
+            {/* Avatar upload — CREATE mode */}
+            {mode === 'create' && (
+              <div className="flex items-center gap-4 p-4 bg-muted/40 rounded-xl border border-border">
+                <div className="relative flex-shrink-0">
+                  {(form as any)._createAvatarPreview ? (
+                    <img src={(form as any)._createAvatarPreview} alt="avatar"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-border" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-primary/10 border-2 border-dashed border-primary/30 flex items-center justify-center text-primary font-bold text-xl">
+                      {((form.full_name as string) || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <label className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-md">
+                    <span className="text-xs font-black">+</span>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 3 * 1024 * 1024) { toast.error('Máx 3 MB'); return; }
+                        setForm(p => ({ ...p, _createAvatarFile: f, _createAvatarPreview: URL.createObjectURL(f) }));
+                      }} />
+                  </label>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Foto de perfil</p>
+                  <p className="text-xs text-muted-foreground">Opcional — puedes cambiarla después</p>
+                  {(form as any)._createAvatarPreview && (
+                    <button type="button"
+                      onClick={() => setForm(p => ({ ...p, _createAvatarFile: undefined, _createAvatarPreview: undefined }))}
+                      className="text-xs text-red-500 hover:underline mt-1">Quitar foto</button>
+                  )}
+                </div>
+              </div>
+            )}
+
+                        {/* Avatar section — only in edit mode when user already exists */}
+            {mode === 'edit' && form.id && (
+              <div className="flex items-center gap-4 p-4 bg-muted/40 rounded-xl border border-border">
+                <div className="relative flex-shrink-0">
+                  {(form as any).avatar_url ? (
+                    <img src={(form as any).avatar_url} alt={form.full_name as string}
+                      className="w-16 h-16 rounded-full object-cover border-2 border-border" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-primary/15 border-2 border-primary/25 flex items-center justify-center text-xl font-bold text-primary">
+                      {((form.full_name as string) || (form.email as string) || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <label className={cn('absolute bottom-0 right-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors shadow-md', avatarUploading && 'opacity-50 cursor-not-allowed')}>
+                    {avatarUploading
+                      ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <span className="text-xs font-black">+</span>}
+                    <input type="file" accept="image/*" className="hidden" disabled={avatarUploading} onChange={handleAvatarUpload} />
+                  </label>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{form.full_name as string}</p>
+                  <p className="text-xs text-muted-foreground">Haz clic en el botón + para cambiar la foto</p>
+                  {(form as any).avatar_url && (
+                    <button type="button" onClick={async () => {
+                      await supabase.from('profiles').update({ avatar_url: null, updated_at: new Date().toISOString() }).eq('id', form.id as string);
+                      setForm(p => ({ ...p, avatar_url: undefined }));
+                      toast.success('Foto eliminada');
+                    }} className="text-xs text-red-500 hover:underline mt-1">
+                      Quitar foto
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Field label="Nombre completo" hint={mode === 'create' ? 'El nombre de usuario se generará automáticamente' : undefined}>
               <Input
                 value={(form.full_name as string) || ''}
@@ -232,9 +329,10 @@ function UserModal({
                 autoComplete="tel"
               />
             </Field>
-            <Field label="Código de referido" hint={readOnly ? undefined : 'Solo lectura — asignado por el sistema'}>
+            <Field label="Código de referido" hint={mode === 'create' ? 'Se generará automáticamente al crear el usuario' : 'Asignado por el sistema — no editable'}>
               <Input
-                value={(form.referral_code as string) || ''}
+                value={(form.referral_code as string) || (mode === 'create' ? '' : '')}
+                placeholder={mode === 'create' ? 'Se generará al crear...' : ''}
                 readOnly
               />
             </Field>
@@ -244,7 +342,7 @@ function UserModal({
           <div className="grid grid-cols-2 gap-4">
             <Field label="Rol en el sistema">
               <Select value={(form.role as string) || 'user'} onChange={set('role')} disabled={readOnly}>
-                {ROLES.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+                {(customRoles.length > 0 ? customRoles : ROLES.map(r => ({ name: r, label: roleLabels[r] || r, color: '#6B7280' }))).map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
               </Select>
             </Field>
             <Field label="Estado de la cuenta">
@@ -344,6 +442,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [ranks, setRanks] = useState<RankOption[]>([]);
+  const [customRoles, setCustomRoles] = useState<CustomRoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('');
@@ -359,9 +458,11 @@ export default function UsersPage() {
     Promise.all([
       supabase.from('plans').select('slug, name').eq('is_active', true).order('sort_order'),
       supabase.from('ranks').select('slug, name').eq('is_active', true).order('sort_order'),
-    ]).then(([p, r]) => {
+      supabase.from('custom_roles').select('name, label, color').order('sort_order'),
+    ]).then(([p, r, cr]) => {
       if (p.data) setPlans(p.data as PlanOption[]);
       if (r.data) setRanks(r.data as RankOption[]);
+      if (cr.data && cr.data.length > 0) setCustomRoles(cr.data as CustomRoleOption[]);
     });
   }, []);
 
@@ -415,6 +516,19 @@ export default function UsersPage() {
           phone: fields.phone || null,
           updated_at: new Date().toISOString(),
         }).eq('id', uid);
+      }
+      // Upload avatar if provided
+      const avatarFile = (data as any)._createAvatarFile as File | undefined;
+      if (avatarFile && uid) {
+        try {
+          const ext = avatarFile.name.split('.').pop() || 'jpg';
+          const path = `${uid}/avatar.${ext}`;
+          const { error: upErr } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
+          if (!upErr) {
+            const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+            await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', uid);
+          }
+        } catch { /* best-effort */ }
       }
       toast.success('Usuario creado. Contraseña temporal: Temp123456!');
 
@@ -508,7 +622,7 @@ export default function UsersPage() {
           className="px-3 py-2.5 bg-muted border border-border rounded-xl text-sm text-foreground outline-none focus:border-primary min-w-[120px]"
         >
           <option value="">Todos los roles</option>
-          {ROLES.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+          {(customRoles.length > 0 ? customRoles : ROLES.map(r => ({ name: r, label: roleLabels[r] || r, color: '#6B7280' }))).map(r => <option key={r.name} value={r.name}>{r.label}</option>)}
         </select>
         <select
           value={filterStatus}
@@ -578,7 +692,7 @@ export default function UsersPage() {
                   </td>
                   <td className="py-3 px-4 hidden md:table-cell">
                     <span className={cn('text-xs font-medium px-2 py-1 rounded-full', roleColors[user.role] || 'bg-muted text-muted-foreground')}>
-                      {roleLabels[user.role] || user.role}
+                      {(customRoles.find(r => r.name === user.role) || { label: roleLabels[user.role] || user.role })?.label}
                     </span>
                   </td>
                   <td className="py-3 px-4 hidden sm:table-cell">
@@ -701,6 +815,7 @@ export default function UsersPage() {
           user={modal.user}
           plans={plans}
           ranks={ranks}
+          customRoles={customRoles}
           onClose={() => setModal({ mode: null, user: null })}
           onSave={handleSave}
         />

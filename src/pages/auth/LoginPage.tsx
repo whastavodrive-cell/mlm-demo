@@ -33,14 +33,14 @@ export default function LoginPage() {
 
   if (user) return <Navigate to="/dashboard" />;
 
-const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-  resolver: zodResolver(schema),
-  defaultValues: {
-    email: localStorage.getItem('mlm360-remembered-email') || 'whastavo@gmail.com',
-    password: 'Elgop365102.',
-    remember: true,
-  },
-});
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      email: localStorage.getItem('mlm360-remembered-email') || '',
+      remember: !!localStorage.getItem('mlm360-remembered-email'),
+    },
+  });
+
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
@@ -81,7 +81,7 @@ const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     if (!forgotEmail) return;
     setForgotLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) toast.error('Error al enviar el correo de recuperación');
     else { setForgotSent(true); toast.success('Correo de recuperación enviado'); }

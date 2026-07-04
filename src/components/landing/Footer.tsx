@@ -1,5 +1,5 @@
 import { Link } from '@/lib/router';
-import { Boxes, Mail, Phone, MapPin, Facebook, Instagram, Linkedin } from 'lucide-react';
+import { Boxes, Mail, Phone, MapPin, Facebook, Instagram, Linkedin, Twitter } from 'lucide-react';
 import { useConfig } from '@/store/configStore';
 
 export default function Footer() {
@@ -27,7 +27,7 @@ export default function Footer() {
               El sistema MLM empresarial más completo del Perú. Gestiona tu red y multiplica tus ingresos.
             </p>
             <div className="flex gap-3">
-              {[Facebook, Instagram, Linkedin].map((Icon, i) => (
+              {[Facebook, Instagram, Linkedin, Twitter].map((Icon, i) => (
                 <a key={i} href="#" className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
                   <Icon className="w-4 h-4" />
                 </a>
@@ -85,7 +85,7 @@ export default function Footer() {
       </div>
       <div className="border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">© 2026 {companyName}. Todos los derechos reservados.</p>
+          <p className="text-sm text-muted-foreground">© 2024 {companyName}. Todos los derechos reservados.</p>
           <p className="text-xs text-muted-foreground">Hecho con amor en Lima, Perú 🇵🇪</p>
         </div>
       </div>

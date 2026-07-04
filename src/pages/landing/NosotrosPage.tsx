@@ -3,7 +3,7 @@ import Footer from '@/components/landing/Footer';
 import { Target, Award, TrendingUp } from 'lucide-react';
 
 const team = [
-  { name: 'Gustavo SA', role: 'CEO & Fundador', img: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=200' },
+  { name: 'Gustavo Ortiz', role: 'CEO & Fundador', img: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=200' },
   { name: 'María González', role: 'Directora Comercial', img: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=200' },
   { name: 'Carlos Torres', role: 'CTO', img: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=200' },
   { name: 'Ana Ríos', role: 'Directora de Operaciones', img: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=200' },

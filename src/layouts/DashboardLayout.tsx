@@ -13,6 +13,7 @@ import CommissionsPage from '@/pages/mlm/CommissionsPage';
 import RanksPage from '@/pages/mlm/RanksPage';
 import AdminPage from '@/pages/admin/AdminPage';
 import AdminCommissionsPage from '@/pages/admin/AdminCommissionsPage';
+import RolesAdminPage from '@/pages/admin/RolesAdminPage';
 import UsersPage from '@/pages/admin/UsersPage';
 import MyPlanPage from '@/pages/dashboard/MyPlanPage';
 import OrdersPage from '@/pages/dashboard/OrdersPage';
@@ -40,6 +41,7 @@ function DashboardContent() {
   if (pathname === '/dashboard/usuarios') return <UsersPage />;
   if (pathname === '/dashboard/admin') return <AdminPage />;
   if (pathname === '/dashboard/admin-comisiones') return <AdminCommissionsPage />;
+  if (pathname === '/dashboard/admin/roles') return <RolesAdminPage />;
   if (pathname === '/dashboard/mi-plan') return <MyPlanPage />;
   if (pathname === '/dashboard/pedidos') return <OrdersPage />;
   if (pathname.startsWith('/dashboard/pedidos/factura/')) return <InvoicePage />;

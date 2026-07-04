@@ -187,7 +187,7 @@ export default function LandingPage() {
             <div className="animate-fade-in-up">
               <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-primary text-xs font-semibold mb-6 tracking-wide uppercase">
                 <Zap className="w-3 h-3" />
-                Sis MLM
+                Sistema MLM Empresarial · Perú 2025
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.1] mb-5 tracking-tight">
                 Construye tu red.<br />

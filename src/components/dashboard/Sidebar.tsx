@@ -4,7 +4,7 @@ import { useConfig } from '@/store/configStore';
 import { cn } from '@/lib/utils';
 import { Link, useLocation } from '@/lib/router';
 import { useState } from 'react';
-import { LayoutDashboard, Users, GitBranch, DollarSign, Award, ChartBar as BarChart3, Settings, ChevronDown, X, ChevronLeft, Boxes, UserCog, CreditCard, User, ShoppingBag, Package, Truck, Tag, ChartBar as BarChart2, ShoppingCart, FolderOpen, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, GitBranch, DollarSign, Award, ChartBar as BarChart3, Settings, ChevronDown, X, ChevronLeft, Boxes, UserCog, CreditCard, User, ShoppingBag, Package, Truck, Tag, ChartBar as BarChart2, ShoppingCart, FolderOpen, MessageSquare, Shield } from 'lucide-react';
 
 interface NavItem {
   label: string;
@@ -16,7 +16,13 @@ interface NavItem {
 
 const superAdminNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Usuarios', href: '/dashboard/usuarios', icon: Users },
+  {
+    label: 'Usuarios', icon: Users,
+    children: [
+      { label: 'Lista de Usuarios', href: '/dashboard/usuarios', icon: Users },
+      { label: 'Gestión de Roles', href: '/dashboard/admin/roles', icon: Shield },
+    ]
+  },
   { label: 'Red MLM', href: '/dashboard/red', icon: GitBranch },
   { label: 'Comisiones', href: '/dashboard/comisiones', icon: DollarSign },
   { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
@@ -35,13 +41,19 @@ const superAdminNav: NavItem[] = [
   },
   { label: 'Mi Plan', href: '/dashboard/mi-plan', icon: CreditCard },
   { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-  { label: 'Gestión Roles', href: '/dashboard/admin', icon: UserCog },
+  { label: 'Gestión Admin', href: '/dashboard/admin', icon: UserCog },
   { label: 'Configuración', href: '/dashboard/configuracion', icon: Settings },
 ];
 
 const adminNav: NavItem[] = [
   { label: 'Panel Admin', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Usuarios', href: '/dashboard/usuarios', icon: Users },
+  {
+    label: 'Usuarios', icon: Users,
+    children: [
+      { label: 'Lista de Usuarios', href: '/dashboard/usuarios', icon: Users },
+      { label: 'Gestión de Roles', href: '/dashboard/admin/roles', icon: Shield },
+    ]
+  },
   { label: 'Red MLM', href: '/dashboard/red', icon: GitBranch },
   { label: 'Comisiones', href: '/dashboard/comisiones', icon: DollarSign },
   { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
@@ -59,7 +71,7 @@ const adminNav: NavItem[] = [
   },
   { label: 'Mi Plan', href: '/dashboard/mi-plan', icon: CreditCard },
   { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-  { label: 'Gestión Roles', href: '/dashboard/admin', icon: UserCog },
+  { label: 'Gestión Admin', href: '/dashboard/admin', icon: UserCog },
 ];
 
 const userNav: NavItem[] = [

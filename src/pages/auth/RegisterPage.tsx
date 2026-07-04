@@ -7,12 +7,17 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useConfig, formatPrice } from '@/store/configStore';
 import { toast } from 'sonner';
-import { Eye, EyeOff, CircleCheck as CheckCircle, Boxes, ArrowRight, ArrowLeft, User, Mail, Lock, Loader as Loader2, CircleAlert as AlertCircle, Camera, CreditCard } from 'lucide-react';
+import {
+  Eye, EyeOff, CircleCheck as CheckCircle, Boxes,
+  ArrowRight, ArrowLeft, User, Mail, Lock,
+  Loader as Loader2, CircleAlert as AlertCircle,
+  Camera, CreditCard,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const step1Schema = z.object({
   full_name: z.string().min(3, 'Mínimo 3 caracteres'),
-  email: z.string().email('Correo inválido'),
+  email: z.string().email('Correo electrónico inválido'),
   password: z.string().min(8, 'Mínimo 8 caracteres'),
   confirm_password: z.string(),
   referral_code: z.string().optional(),
@@ -23,9 +28,26 @@ const step1Schema = z.object({
 
 type Step1Data = z.infer<typeof step1Schema>;
 
+function translateAuthError(msg: string): string {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('already registered') || m.includes('user already exists') || m.includes('email already'))
+    return 'Este correo ya está registrado. Intenta iniciar sesión.';
+  if (m.includes('invalid email') || m.includes('email address') || m.includes('is invalid'))
+    return 'El correo electrónico no es válido. Usa un correo real como nombre@gmail.com.';
+  if (m.includes('rate limit') || m.includes('too many') || m.includes('exceeded'))
+    return 'Demasiados intentos. Espera unos minutos antes de intentarlo de nuevo.';
+  if (m.includes('password') && (m.includes('weak') || m.includes('short')))
+    return 'La contraseña es muy débil. Usa al menos 8 caracteres combinando letras y números.';
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to'))
+    return 'Error de conexión. Verifica tu internet e intenta de nuevo.';
+  if (m.includes('signup') && m.includes('disabled'))
+    return 'El registro está temporalmente deshabilitado. Intenta más tarde.';
+  return 'Ocurrió un error al crear la cuenta. Por favor intenta de nuevo.';
+}
+
 export default function RegisterPage() {
   const { user } = useAuthStore();
-  const { plans, currency, currencySymbol, exchangeRate } = useConfig();
+  const { plans, currency, currencySymbol, exchangeRate, company, loading: configLoading } = useConfig();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -40,18 +62,41 @@ export default function RegisterPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
 
-  // Only show active plans
-  const activePlans = plans.filter(p => p.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  // Read admin config — wait until config is loaded so we read the real value
+  // While loading, treat showPlans=false to avoid showing plan step then hiding it (flicker)
+  const showPlans   = configLoading ? false : company.register_show_plans !== 'false';
+  const requirePlan = company.register_require_plan === 'true';
+  const defaultPlanSlug = company.register_default_plan || '';
+  const companyName = company.company_name || 'MLM 360';
 
-  // Pre-select plan from query param
+  const activePlans = plans
+    .filter(p => p.is_active)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+  // Steps: if showPlans → [Datos, Plan, Confirmar], else → [Datos, Confirmar]
+  const steps = showPlans
+    ? [{ n: 1, label: 'Datos' }, { n: 2, label: 'Plan' }, { n: 3, label: 'Confirmar' }]
+    : [{ n: 1, label: 'Datos' }, { n: 2, label: 'Confirmar' }];
+
+  const confirmStepN = showPlans ? 3 : 2;
+
+  // Pre-select plan from URL param or auto-select free plan when plans hidden
   useEffect(() => {
     const planSlug = searchParams.get('plan') || '';
-    if (planSlug && activePlans.find(p => p.slug === planSlug)) {
+    if (planSlug) {
       setSelectedPlanSlug(planSlug);
-    } else if (planSlug) {
-      setSelectedPlanSlug(planSlug);
+      return;
     }
-  }, [searchParams, activePlans.length]);
+    if (!showPlans) {
+      // Auto-assign: use default slug config, or first free plan, or first available
+      const auto =
+        (defaultPlanSlug && activePlans.find(p => p.slug === defaultPlanSlug)) ? defaultPlanSlug
+        : activePlans.find(p => p.is_free || Number(p.price) === 0)?.slug
+        ?? activePlans[0]?.slug
+        ?? '';
+      setSelectedPlanSlug(auto);
+    }
+  }, [searchParams, activePlans.length, showPlans, defaultPlanSlug]);
 
   if (user) return <Navigate to="/dashboard" />;
 
@@ -62,6 +107,7 @@ export default function RegisterPage() {
 
   const emailVal = watch('email');
 
+  // Debounced duplicate email check
   useEffect(() => {
     if (!emailVal || !emailVal.includes('@')) {
       setDupError(p => ({ ...p, email: undefined }));
@@ -87,101 +133,104 @@ export default function RegisterPage() {
     if (dupError.email) { toast.error('El correo ya está registrado'); return; }
     setValidating(true);
     const { data: check } = await supabase.rpc('check_user_exists', { p_username: '', p_email: data.email });
+    setValidating(false);
     if (check?.email_exists) {
       setDupError({ email: 'Este correo ya está registrado' });
-      setValidating(false);
       toast.error('El correo ya está registrado');
       return;
     }
-    setValidating(false);
     setFormData(data);
-    setStep(2);
+    // Go to plan step if shown, else straight to confirm
+    setStep(showPlans ? 2 : confirmStepN);
+  };
+
+  const handleGoToConfirm = () => {
+    if (showPlans && requirePlan && !selectedPlanSlug) {
+      toast.error('Debes seleccionar un plan para continuar');
+      return;
+    }
+    setStep(confirmStepN);
   };
 
   const handleFinalSubmit = async () => {
     if (!formData) return;
-    if (!selectedPlanSlug) {
+
+    // Resolve which plan to use
+    const planSlug = selectedPlanSlug || defaultPlanSlug || activePlans.find(p => p.is_free || Number(p.price) === 0)?.slug || activePlans[0]?.slug || '';
+
+    if (showPlans && requirePlan && !planSlug) {
       toast.error('Debes seleccionar un plan');
-      setStep(2);
+      setStep(showPlans ? 2 : 1);
       return;
     }
+
+    const selectedPlan = activePlans.find(p => p.slug === planSlug);
+    const isFree = !planSlug || !selectedPlan || selectedPlan.is_free || Number(selectedPlan.price) === 0;
+
     setLoading(true);
-
     const refCode = (formData.referral_code || searchParams.get('ref') || '').trim().toUpperCase();
-    const selectedPlan = activePlans.find(p => p.slug === selectedPlanSlug);
-    const isFree = selectedPlan?.is_free || Number(selectedPlan?.price) === 0;
 
-    // Sign up — trigger creates the profile automatically
+    // signUp returns a session directly when email confirmation is OFF
+    // Do NOT call signInWithPassword after signUp — it triggers a separate rate-limit hit
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
         data: {
           full_name: formData.full_name,
-          plan: selectedPlanSlug,
+          plan: planSlug,
           referral_code: refCode,
         },
       },
     });
 
     if (signUpError) {
-      const msg = signUpError.message.includes('already registered')
-        ? 'Este correo ya está registrado. Intenta iniciar sesión.'
-        : signUpError.message;
-      toast.error(msg);
+      toast.error(translateAuthError(signUpError.message));
       setLoading(false);
       return;
     }
 
-    // Auto sign-in (email confirmation is off)
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: formData.email,
-      password: formData.password,
-    });
+    const userId = signUpData?.user?.id;
+    const hasSession = !!signUpData?.session; // true when email confirmation is disabled
 
-    if (signInError) {
-      toast.success('¡Cuenta creada! Inicia sesión para continuar.');
-      navigate('/login');
-      setLoading(false);
-      return;
-    }
-
-    const userId = signInData?.user?.id || signUpData?.user?.id;
-
-    // Upload avatar if provided
+    // Upload avatar (best-effort)
     if (avatarFile && userId) {
       try {
         const ext = avatarFile.name.split('.').pop() || 'jpg';
         const path = `${userId}/avatar.${ext}`;
-        const { error: uploadErr } = await supabase.storage
+        const { error: upErr } = await supabase.storage
           .from('avatars')
           .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
-        if (!uploadErr) {
+        if (!upErr) {
           const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-          await supabase.from('profiles').update({
-            avatar_url: publicUrl,
-            updated_at: new Date().toISOString(),
-          }).eq('id', userId);
+          await supabase.from('profiles').update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq('id', userId);
         }
       } catch { /* best-effort */ }
     }
 
-    // Redirect by plan type
-    if (isFree) {
-      toast.success('¡Cuenta creada! Bienvenido a MLM 360.');
-      navigate('/dashboard');
-    } else {
-      toast.success('¡Cuenta creada! Completa tu pago para activar el plan.');
-      navigate(`/pago?plan=${selectedPlanSlug}`);
-    }
     setLoading(false);
-  };
 
-  const steps = [
-    { n: 1, label: 'Datos' },
-    { n: 2, label: 'Plan' },
-    { n: 3, label: 'Confirmar' },
-  ];
+    if (!hasSession) {
+      // Email confirmation is required — redirect appropriately
+      if (!isFree && planSlug) {
+        toast.success('¡Cuenta creada! Confirma tu correo y luego completa el pago.');
+        navigate(`/pago?plan=${planSlug}`);
+      } else {
+        toast.success('¡Cuenta creada! Revisa tu correo para confirmar tu cuenta.');
+        navigate('/login');
+      }
+      return;
+    }
+
+    // Session returned — user is already logged in
+    if (!isFree && planSlug) {
+      toast.success('¡Cuenta creada! Completa el pago para activar tu plan.');
+      navigate(`/pago?plan=${planSlug}`);
+    } else {
+      toast.success(`¡Bienvenido a ${companyName}! Tu cuenta está lista.`);
+      navigate('/dashboard');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
@@ -191,7 +240,7 @@ export default function RegisterPage() {
           <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
             <Boxes className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-xl text-foreground">MLM 360</span>
+          <span className="font-bold text-xl text-foreground">{companyName}</span>
         </Link>
         <p className="text-sm text-muted-foreground hidden sm:block">
           ¿Ya tienes cuenta?{' '}
@@ -201,6 +250,7 @@ export default function RegisterPage() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="w-full max-w-xl">
+
           {/* Step indicator */}
           <div className="flex items-center justify-center mb-10">
             {steps.map((s, i) => (
@@ -210,7 +260,7 @@ export default function RegisterPage() {
                     'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all',
                     step > s.n ? 'bg-green-500 text-white' :
                     step === s.n ? 'bg-primary text-white' :
-                    'bg-muted text-muted-foreground'
+                    'bg-muted text-muted-foreground',
                   )}>
                     {step > s.n ? <CheckCircle className="w-5 h-5" /> : s.n}
                   </div>
@@ -233,11 +283,7 @@ export default function RegisterPage() {
 
               {/* Avatar upload */}
               <div className="flex flex-col items-center mb-6">
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className="relative group"
-                >
+                <button type="button" onClick={() => fileRef.current?.click()} className="relative group">
                   {avatarPreview ? (
                     <img src={avatarPreview} alt="avatar" className="w-20 h-20 rounded-full object-cover border-2 border-primary/30" />
                   ) : (
@@ -254,6 +300,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Full name */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">Nombre completo *</label>
                   <div className="relative">
@@ -265,6 +312,7 @@ export default function RegisterPage() {
                   {errors.full_name && <p className="text-destructive text-xs mt-1">{errors.full_name.message}</p>}
                 </div>
 
+                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">Correo electrónico *</label>
                   <div className="relative">
@@ -274,13 +322,14 @@ export default function RegisterPage() {
                         errors.email || dupError.email ? 'border-destructive' : 'border-border focus:border-primary')} />
                   </div>
                   {errors.email && <p className="text-destructive text-xs mt-1">{errors.email.message}</p>}
-                  {dupError.email && (
+                  {!errors.email && dupError.email && (
                     <p className="text-destructive text-xs mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> {dupError.email}
                     </p>
                   )}
                 </div>
 
+                {/* Passwords */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Contraseña *</label>
@@ -307,8 +356,11 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
+                {/* Referral */}
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Código de referido (opcional)</label>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Código de referido <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </label>
                   <input {...register('referral_code')} placeholder="Ej: GUST001"
                     className="w-full px-3 py-3 bg-muted border border-border focus:border-primary rounded-xl text-foreground text-sm outline-none transition-colors placeholder:text-muted-foreground" />
                   {searchParams.get('ref') && (
@@ -321,7 +373,9 @@ export default function RegisterPage() {
 
               <button type="submit" disabled={validating || !!dupError.email}
                 className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl mt-6 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                {validating ? <><Loader2 className="w-4 h-4 animate-spin" /> Validando...</> : <>Continuar <ArrowRight className="w-4 h-4" /></>}
+                {validating
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Validando...</>
+                  : <>Continuar <ArrowRight className="w-4 h-4" /></>}
               </button>
 
               <div className="mt-4 flex items-center gap-3">
@@ -355,19 +409,25 @@ export default function RegisterPage() {
             </form>
           )}
 
-          {/* ── Step 2: Plan ── */}
-          {step === 2 && formData && (
+          {/* ── Step 2: Plan (only when showPlans) ── */}
+          {step === 2 && showPlans && formData && (
             <div className="bg-card border border-border rounded-2xl p-6 sm:p-8">
               <h2 className="text-2xl font-bold text-foreground mb-1">Elige tu plan</h2>
-              <p className="text-muted-foreground text-sm mb-6">Selecciona el plan que mejor se adapte a tus metas.</p>
+              <p className="text-muted-foreground text-sm mb-6">
+                {requirePlan
+                  ? 'Selecciona un plan para continuar.'
+                  : 'Elige un plan o continúa sin seleccionar uno.'}
+              </p>
 
               <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-1">
                 {activePlans.map(plan => {
                   const isFree = plan.is_free || Number(plan.price) === 0;
+                  const isSelected = selectedPlanSlug === plan.slug;
                   return (
-                    <button key={plan.id} onClick={() => setSelectedPlanSlug(plan.slug)}
+                    <button key={plan.id} type="button"
+                      onClick={() => setSelectedPlanSlug(isSelected && !requirePlan ? '' : plan.slug)}
                       className={cn('w-full text-left p-4 rounded-xl border-2 transition-all',
-                        selectedPlanSlug === plan.slug ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40')}>
+                        isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40')}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -384,7 +444,7 @@ export default function RegisterPage() {
                           {!isFree && <div className="text-xs text-muted-foreground">/mes</div>}
                         </div>
                       </div>
-                      {selectedPlanSlug === plan.slug && plan.features?.length > 0 && (
+                      {isSelected && plan.features?.length > 0 && (
                         <ul className="mt-3 space-y-1 border-t border-border/40 pt-3">
                           {plan.features.slice(0, 5).map((f: string) => (
                             <li key={f} className="flex items-center gap-1.5 text-xs text-foreground">
@@ -399,11 +459,11 @@ export default function RegisterPage() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)}
+                <button type="button" onClick={() => setStep(1)}
                   className="flex-1 border border-border hover:bg-muted py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm font-medium text-foreground">
                   <ArrowLeft className="w-4 h-4" /> Atrás
                 </button>
-                <button onClick={() => selectedPlanSlug ? setStep(3) : toast.error('Selecciona un plan')}
+                <button type="button" onClick={handleGoToConfirm}
                   className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
                   Continuar <ArrowRight className="w-4 h-4" />
                 </button>
@@ -411,59 +471,62 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── Step 3: Confirm ── */}
-          {step === 3 && formData && (
+          {/* ── Confirm step ── */}
+          {step === confirmStepN && formData && (
             <div className="bg-card border border-border rounded-2xl p-6 sm:p-8">
               <div className="text-center mb-8">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4 overflow-hidden">
                   {avatarPreview
-                    ? <img src={avatarPreview} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                    ? <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
                     : <CheckCircle className="w-8 h-8 text-primary" />}
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-1">¡Todo listo!</h2>
                 <p className="text-muted-foreground text-sm">Revisa tu información antes de crear la cuenta.</p>
               </div>
 
-              <div className="space-y-2 mb-6">
+              <div className="space-y-0 mb-6 divide-y divide-border/50">
                 {[
                   { label: 'Nombre', value: formData.full_name },
                   { label: 'Correo', value: formData.email },
-                  { label: 'Plan', value: activePlans.find(p => p.slug === selectedPlanSlug)?.name || selectedPlanSlug },
+                  ...(selectedPlanSlug
+                    ? [{ label: 'Plan', value: activePlans.find(p => p.slug === selectedPlanSlug)?.name || selectedPlanSlug }]
+                    : [{ label: 'Plan', value: 'Sin plan (puedes elegir uno más adelante)' }]),
                   ...(formData.referral_code ? [{ label: 'Referido por', value: formData.referral_code }] : []),
                 ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between py-2.5 border-b border-border/50">
+                  <div key={label} className="flex justify-between py-2.5">
                     <span className="text-muted-foreground text-sm">{label}</span>
-                    <span className="text-foreground font-medium text-sm">{value}</span>
+                    <span className="text-foreground font-medium text-sm text-right max-w-[60%]">{value}</span>
                   </div>
                 ))}
               </div>
 
               {(() => {
                 const plan = activePlans.find(p => p.slug === selectedPlanSlug);
-                const isFree = plan?.is_free || Number(plan?.price) === 0;
+                const isFree = !plan || plan.is_free || Number(plan.price) === 0;
                 if (!isFree) return (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6 flex items-start gap-3">
                     <CreditCard className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      Este plan requiere pago. Serás redirigido a la pasarela de pago después de crear tu cuenta.
+                      Este plan requiere pago. Serás redirigido a la pasarela de pago al crear tu cuenta.
                     </p>
                   </div>
                 );
                 return (
                   <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-6">
                     <p className="text-xs text-green-700 dark:text-green-300 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" /> Plan gratuito. Tu cuenta se activará de inmediato.
+                      <CheckCircle className="w-4 h-4" />
+                      {plan ? 'Plan gratuito — tu cuenta se activará de inmediato.' : 'Tu cuenta se creará sin plan activo.'}
                     </p>
                   </div>
                 );
               })()}
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(2)}
+                <button type="button" onClick={() => setStep(showPlans ? 2 : 1)}
                   className="flex-1 border border-border hover:bg-muted py-3 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm font-medium text-foreground">
                   <ArrowLeft className="w-4 h-4" /> Atrás
                 </button>
-                <button onClick={handleFinalSubmit} disabled={loading}
+                <button type="button" onClick={handleFinalSubmit} disabled={loading}
                   className="flex-1 bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                   {loading
                     ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -472,6 +535,7 @@ export default function RegisterPage() {
               </div>
             </div>
           )}
+
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">

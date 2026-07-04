@@ -190,9 +190,14 @@ export default function DashboardHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-muted transition-colors">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
-                {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'U'}
-              </div>
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt={user.full_name || 'Avatar'}
+                  className="w-8 h-8 rounded-full object-cover border border-border flex-shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary flex-shrink-0">
+                  {user?.full_name?.charAt(0).toUpperCase() || user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
               <div className="hidden md:block text-left">
                 <div className="text-sm font-medium text-foreground leading-tight">{user?.full_name || user?.username || 'Usuario'}</div>
                 <div className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ') || 'Usuario'}</div>

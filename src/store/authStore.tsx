@@ -134,6 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!mounted) return;
             clearTimeout(safetyTimer);
             setLoading(false);
+            if (event === 'PASSWORD_RECOVERY') {
+              // Navigate to the reset page so the user can set a new password
+              if (window.location.pathname !== '/reset-password') doRedirect('/reset-password');
+              return;
+            }
             if (event === 'SIGNED_IN') {
               const currentPath = window.location.pathname;
               if (fromOAuth || AUTH_PATHS.includes(currentPath)) {

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { useSearchParams } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Building2, Shield, Smartphone, Search, Mail, Save, ChevronRight, RefreshCw, MessageCircle, Eye, EyeOff, Lock, CreditCard, Award, Plus, Trash2, CreditCard as Edit2, X, CircleCheck as CheckCircle, DollarSign, Wrench, TriangleAlert as AlertTriangle } from 'lucide-react';
@@ -23,6 +24,7 @@ const modules = [
   { id: 'empresa', icon: Building2, label: 'Empresa', desc: 'Datos de la empresa y branding' },
   { id: 'mantenimiento', icon: Wrench, label: 'Mantenimiento', desc: 'Modo mantenimiento y estado del sistema' },
   { id: 'planes', icon: CreditCard, label: 'Planes', desc: 'Gestionar planes de suscripción' },
+  { id: 'registro', icon: Shield, label: 'Registro', desc: 'Flujo y configuración del registro de usuarios' },
   { id: 'rangos', icon: Award, label: 'Rangos', desc: 'Gestionar rangos MLM' },
   { id: 'permisos', icon: Shield, label: 'Matriz de Permisos', desc: 'Permisos granulares por rol incluyendo red MLM' },
   { id: 'pwa', icon: Smartphone, label: 'PWA', desc: 'Configuración de la app móvil' },
@@ -101,29 +103,44 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 
 export default function AdminPage() {
   const { user } = useAuthStore();
-  const [activeModule, setActiveModule] = useState('empresa');
+  const [searchParamsAdmin] = useSearchParams();
+  const [activeModule, setActiveModule] = useState(() => searchParamsAdmin.get('module') || 'empresa');
+
+  // Sync module from URL param (for external navigation like from RolesPage)
+  useEffect(() => {
+    const mod = searchParamsAdmin.get('module');
+    if (mod) setActiveModule(mod);
+  }, [searchParamsAdmin]);
   const [permissions, setPermissions] = useState(defaultPermissions);
   const [savingPerms, setSavingPerms] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [, setLoadingConfig] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [customRoles, setCustomRoles] = useState<{ name: string; label: string; color: string }[]>([]);
 
   const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   useEffect(() => {
-    supabase.from('system_config').select('*').then(({ data }) => {
-      if (data) {
+    Promise.all([
+      supabase.from('system_config').select('*'),
+      supabase.from('custom_roles').select('name, label, color').order('sort_order'),
+    ]).then(([{ data: cfg }, { data: cr }]) => {
+      if (cfg) {
         const map: Record<string, string> = {};
-        data.forEach((row: any) => { map[row.key] = row.value; });
+        cfg.forEach((row: any) => { map[row.key] = row.value; });
         setConfig(map);
       }
+      if (cr && cr.length > 0) setCustomRoles(cr as { name: string; label: string; color: string }[]);
       setLoadingConfig(false);
     });
   }, []);
 
   const togglePermission = (role: string, perm: string) => {
-    setPermissions(prev => ({ ...prev, [role]: { ...prev[role], [perm]: !prev[role][perm] } }));
+    setPermissions(prev => {
+      const rolePerms = prev[role] ?? Object.fromEntries(permissionList.map(p => [p.key, false]));
+      return { ...prev, [role]: { ...rolePerms, [perm]: !rolePerms[perm] } };
+    });
   };
 
   const savePermissions = async () => {
@@ -238,8 +255,13 @@ export default function AdminPage() {
                   <thead className="bg-muted/50 border-b border-border">
                     <tr>
                       <th className="text-left px-4 sm:px-5 py-3 text-xs font-semibold text-muted-foreground">Permiso</th>
-                      {permissionRoles.map(r => (
-                        <th key={r} className="text-center px-2 sm:px-3 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{roleLabels[r]}</th>
+                      {(customRoles.length > 0 ? customRoles : permissionRoles.map(r => ({ name: r, label: roleLabels[r] || r, color: '#6B7280' }))).map(r => (
+                        <th key={r.name} className="text-center px-2 sm:px-3 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: r.color }} />
+                            {r.label}
+                          </span>
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -249,35 +271,35 @@ export default function AdminPage() {
                       return groups.map(group => {
                         const groupPerms = permissionList.filter(p => (p as any).group === group);
                         return (
-                          <>
-                            <tr key={`group-${group}`} className="border-b border-border/30 bg-muted/30">
-                              <td colSpan={permissionRoles.length + 1} className="px-4 sm:px-5 py-2">
+                          <Fragment key={group}>
+                            <tr className="border-b border-border/30 bg-muted/30">
+                              <td colSpan={(customRoles.length > 0 ? customRoles : permissionRoles).length + 1} className="px-4 sm:px-5 py-2">
                                 <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">{group}</span>
                               </td>
                             </tr>
                             {groupPerms.map(perm => (
                               <tr key={perm.key} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
                                 <td className="px-4 sm:px-5 py-3 text-sm text-foreground pl-6">{perm.label}</td>
-                                {permissionRoles.map(role => (
-                                  <td key={role} className="px-2 sm:px-3 py-3 text-center">
-                                    {role === 'super_admin' ? (
+                                {(customRoles.length > 0 ? customRoles : permissionRoles.map(r => ({ name: r, label: roleLabels[r] || r, color: '#6B7280' }))).map(r => (
+                                  <td key={r.name} className="px-2 sm:px-3 py-3 text-center">
+                                    {r.name === 'super_admin' ? (
                                       <div className="w-5 h-5 rounded bg-primary border-2 border-primary flex items-center justify-center mx-auto">
                                         <span className="text-white text-xs font-bold">✓</span>
                                       </div>
                                     ) : (
-                                      <button onClick={() => togglePermission(role, perm.key)}
+                                      <button onClick={() => togglePermission(r.name, perm.key)}
                                         className={cn(
                                           'w-5 h-5 rounded border-2 flex items-center justify-center mx-auto transition-colors',
-                                          permissions[role]?.[perm.key] ? 'bg-primary border-primary text-white' : 'border-border hover:border-muted-foreground'
+                                          permissions[r.name]?.[perm.key] ? 'bg-primary border-primary text-white' : 'border-border hover:border-muted-foreground'
                                         )}>
-                                        {permissions[role]?.[perm.key] && <span className="text-xs">✓</span>}
+                                        {permissions[r.name]?.[perm.key] && <span className="text-xs">✓</span>}
                                       </button>
                                     )}
                                   </td>
                                 ))}
                               </tr>
                             ))}
-                          </>
+                          </Fragment>
                         );
                       });
                     })()}
@@ -530,7 +552,46 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ── PLANES ── */}
+          {/* ── REGISTRO ── */}
+          {activeModule === 'registro' && (
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Configuración de Registro</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Decide cómo los usuarios se registran: con plan, sin plan, o plan obligatorio.</p>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Mostrar selección de plan</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">El usuario puede elegir un plan durante el registro</div>
+                  </div>
+                  <ToggleSwitch checked={c('register_show_plans') !== 'false'} onChange={v => setC('register_show_plans', String(v))} />
+                </div>
+                {c('register_show_plans') !== 'false' && (
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">Requerir selección de plan</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">El usuario no puede avanzar sin elegir un plan</div>
+                    </div>
+                    <ToggleSwitch checked={c('register_require_plan') === 'true'} onChange={v => setC('register_require_plan', String(v))} />
+                  </div>
+                )}
+                <div className="p-4 bg-muted rounded-xl border border-border">
+                  <label className="block text-sm font-semibold text-foreground mb-1">Plan por defecto <span className="font-normal text-muted-foreground">(slug)</span></label>
+                  <p className="text-xs text-muted-foreground mb-2">Si el usuario no elige plan, se asigna este automáticamente. Dejar vacío para no asignar ninguno.</p>
+                  <input value={c('register_default_plan')} onChange={e => setC('register_default_plan', e.target.value)}
+                    placeholder="ej: basico" className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
+                </div>
+              </div>
+              <button onClick={() => saveConfigKeys(['register_show_plans', 'register_require_plan', 'register_default_plan'], 'registration')}
+                disabled={savingConfig}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 text-sm font-semibold transition-colors disabled:opacity-50">
+                {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
+              </button>
+            </div>
+          )}
+
+                    {/* ── PLANES ── */}
           {activeModule === 'planes' && <PlansManager />}
           {activeModule === 'mantenimiento' && (
             <div className="space-y-5">

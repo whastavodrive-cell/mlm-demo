@@ -16,6 +16,7 @@ import BlogPage from '@/pages/landing/BlogPage';
 import PagoPage from '@/pages/landing/PagoPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
+import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import NotFoundPage from '@/pages/NotFoundPage';
@@ -28,7 +29,7 @@ import WishlistPage from '@/pages/store/WishlistPage';
 import { CartProvider } from '@/store/cartStore';
 import { Boxes, Wrench as WrenchIcon } from 'lucide-react';
 
-const LANDING_PATHS = ['/', '/nosotros', '/precios', '/empresa', '/contacto', '/planes', '/blog', '/pago', '/login', '/registro', '/tienda', '/carrito', '/checkout', '/favoritos', '/tienda/comparar'];
+const LANDING_PATHS = ['/', '/nosotros', '/precios', '/empresa', '/contacto', '/planes', '/blog', '/pago', '/login', '/registro', '/reset-password', '/tienda', '/carrito', '/checkout', '/favoritos', '/tienda/comparar'];
 const ADMIN_BYPASS_ROLES = ['super_admin', 'admin'];
 
 function MaintenancePage() {
@@ -130,6 +131,7 @@ function AppRoutes() {
         <Route path="/pago" element={<PagoPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/registro" element={<RegisterPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/tienda" element={<StorePage />} />
         <Route path="/tienda/comparar" element={<ComparePage />} />
         <Route path="/tienda/*" element={<ProductDetailPage />} />

@@ -8,7 +8,7 @@ import { useNavigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Product, ProductVariant, ProductReview } from '@/lib/storeTypes';
-import { ShoppingCart, Star, ChevronLeft, ChevronRight, Plus, Minus, Truck, Shield, RotateCcw, Heart, Share2, Package, Tag, MessageSquare, Layers, Upload, ThumbsUp, Flag, ChevronDown, CircleCheck as CheckCircle, Play, Download, Eye, Lock, Zap, Info, CreditCard as Edit, DollarSign } from 'lucide-react';
+import { ShoppingCart, Star, ChevronLeft, ChevronRight, Plus, Minus, Truck, Shield, RotateCcw, Heart, Share2, Package, Tag, MessageSquare, Layers, Upload, ThumbsUp, Flag, ChevronDown, CircleCheck as CheckCircle, Play, Download, Eye, Lock, Zap, Info, CreditCard as Edit, DollarSign, ExternalLink } from 'lucide-react';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 
@@ -1017,37 +1017,88 @@ export default function ProductDetailPage() {
       )}
 
       {/* Digital demo modal */}
-      {showDemo && (product as any).digital_demo_url && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowDemo(false)}>
-          <div className="bg-card rounded-2xl overflow-hidden w-full max-w-3xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Eye className="w-5 h-5 text-blue-500" />
-                <span className="font-bold text-foreground">Demostración — {product.name}</span>
-                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-semibold ml-1">GRATIS</span>
+      {showDemo && (product as any).digital_demo_url && (() => {
+        const raw: string = ((product as any).digital_demo_url as string).trim();
+
+        const isVideoFile = /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(raw);
+
+        const ytMatch = raw.match(
+          /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+        );
+        const vimeoMatch = raw.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+
+        const embedUrl = ytMatch
+          ? 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&rel=0'
+          : vimeoMatch
+          ? 'https://player.vimeo.com/video/' + vimeoMatch[1] + '?autoplay=1'
+          : null;
+
+        const isWebPage = !isVideoFile && !embedUrl;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowDemo(false)}>
+            <div
+              className={cn('bg-card rounded-2xl overflow-hidden shadow-2xl w-full', isWebPage ? 'max-w-sm' : 'max-w-3xl')}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-blue-500" />
+                  <span className="font-bold text-foreground">Demostración — {product.name}</span>
+                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-semibold ml-1">GRATIS</span>
+                </div>
+                <button onClick={() => setShowDemo(false)} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-muted text-muted-foreground">✕</button>
               </div>
-              <button onClick={() => setShowDemo(false)} className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-muted text-muted-foreground">✕</button>
-            </div>
-            <div className="aspect-video bg-black">
-              {(product as any).digital_demo_url.match(/\.(mp4|webm|ogg)$/i) ? (
-                <video src={(product as any).digital_demo_url} controls autoPlay className="w-full h-full" />
+
+              {isWebPage ? (
+                <div className="p-6 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto">
+                    <ExternalLink className="w-7 h-7 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground mb-1">Demo disponible en sitio externo</p>
+                    <p className="text-xs text-muted-foreground break-all mt-1">{raw}</p>
+                  </div>
+                  <a
+                    href={raw}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors"
+                    onClick={() => setShowDemo(false)}
+                  >
+                    <ExternalLink className="w-4 h-4" /> Abrir demostración
+                  </a>
+                </div>
               ) : (
-                <iframe src={(product as any).digital_demo_url} className="w-full h-full" allow="autoplay" title="Demo" />
+                <div className="aspect-video bg-black">
+                  {isVideoFile ? (
+                    <video src={raw} controls autoPlay className="w-full h-full" />
+                  ) : (
+                    <iframe
+                      src={embedUrl!}
+                      className="w-full h-full"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                      title="Demo"
+                    />
+                  )}
+                </div>
               )}
-            </div>
-            <div className="p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Lock className="w-4 h-4" />
-                <span>Contenido completo disponible tras la compra</span>
+
+              <div className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Lock className="w-4 h-4" />
+                  <span>Contenido completo disponible tras la compra</span>
+                </div>
+                <button onClick={() => { setShowDemo(false); handleBuyNow(); }}
+                  className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors flex-shrink-0">
+                  Comprar ahora
+                </button>
               </div>
-              <button onClick={() => { setShowDemo(false); handleBuyNow(); }}
-                className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors flex-shrink-0">
-                Comprar ahora
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <Footer />
     </div>
