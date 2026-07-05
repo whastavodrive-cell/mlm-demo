@@ -35,7 +35,7 @@ export const supabaseStorageService: StorageInterface = {
       size: item.metadata?.size ?? 0,
       contentType: item.metadata?.mimetype ?? 'application/octet-stream',
       url: supabase.storage.from(bucket).getPublicUrl(path ? `${path}/${item.name}` : item.name).data.publicUrl,
-      createdAt: item.created_at,
+      createdAt: item.created_at ?? undefined,
     }));
   },
 
