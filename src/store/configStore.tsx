@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+} from 'react';
+import { useDatabase } from '@/lib/backend';
 
 export interface Plan {
   id: string;
@@ -61,7 +68,12 @@ const ConfigContext = createContext<ConfigState>({
   currencySymbol: 'S/',
   exchangeRate: 3.72,
   company: {},
-  tax: { enabled: false, rate: 18, includedInPrice: true, name: 'IGV' },
+  tax: {
+    enabled: false,
+    rate: 18,
+    includedInPrice: true,
+    name: 'IGV',
+  },
   loading: true,
   showUsd: false,
   setShowUsd: () => {},
@@ -69,47 +81,97 @@ const ConfigContext = createContext<ConfigState>({
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
+  const database = useDatabase();
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [ranks, setRanks] = useState<Rank[]>([]);
   const [currency, setCurrency] = useState('PEN');
   const [currencySymbol, setCurrencySymbol] = useState('S/');
   const [exchangeRate, setExchangeRate] = useState(3.72);
   const [company, setCompany] = useState<Record<string, string>>({});
-  const [tax, setTax] = useState<TaxConfig>({ enabled: false, rate: 18, includedInPrice: true, name: 'IGV' });
+  const [tax, setTax] = useState<TaxConfig>({
+    enabled: false,
+    rate: 18,
+    includedInPrice: true,
+    name: 'IGV',
+  });
   const [loading, setLoading] = useState(true);
   const [showUsd, setShowUsd] = useState(false);
 
   const refresh = useCallback(async () => {
-    try {
-      const withTimeout = (p: PromiseLike<any>): Promise<any> =>
-        Promise.race([
-          Promise.resolve(p),
-          new Promise<any>((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
-        ]);
+    setLoading(true);
 
-      const [plansRes, ranksRes, configRes] = await Promise.allSettled([
-        withTimeout(supabase.from('plans').select('*').order('sort_order')),
-        withTimeout(supabase.from('ranks').select('*').order('sort_order')),
-        withTimeout(supabase.from('system_config').select('key, value')),
+    try {
+      const withTimeout = <T,>(promise: Promise<T>): Promise<T | null> =>
+        Promise.race([
+          promise,
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 5000)
+          ),
+        ]).catch(() => null);
+
+      const [plansRes, ranksRes, configRes] = await Promise.all([
+        withTimeout(
+          database.select<Plan>('plans', {
+            order: { column: 'sort_order' },
+          })
+        ),
+        withTimeout(
+          database.select<Rank>('ranks', {
+            order: { column: 'sort_order' },
+          })
+        ),
+        withTimeout(
+          database.select<{ key: string; value: string }>('system_config')
+        ),
       ]);
 
-      if (plansRes.status === 'fulfilled' && plansRes.value.data) {
-        setPlans(plansRes.value.data.map((p: any) => ({
-          ...p,
-          features: Array.isArray(p.features) ? p.features : (() => { try { return JSON.parse(p.features || '[]'); } catch { return []; } })(),
-        })));
+      if (plansRes && 'data' in plansRes && Array.isArray(plansRes.data)) {
+        setPlans(
+          plansRes.data.map((plan: Plan) => ({
+            ...plan,
+            features: Array.isArray(plan.features)
+              ? plan.features
+              : (() => {
+                  try {
+                    return JSON.parse(
+                      (plan.features as unknown as string) || '[]'
+                    );
+                  } catch {
+                    return [];
+                  }
+                })(),
+          }))
+        );
       }
-      if (ranksRes.status === 'fulfilled' && ranksRes.value.data) {
-        setRanks(ranksRes.value.data as Rank[]);
+
+      if (ranksRes && 'data' in ranksRes && Array.isArray(ranksRes.data)) {
+        setRanks(ranksRes.data as Rank[]);
       }
-      if (configRes.status === 'fulfilled' && configRes.value.data) {
+
+      if (configRes && 'data' in configRes && Array.isArray(configRes.data)) {
         const map: Record<string, string> = {};
-        configRes.value.data.forEach((r: any) => { map[r.key] = r.value; });
-        if (map.default_currency) setCurrency(map.default_currency);
-        if (map.currency_symbol) setCurrencySymbol(map.currency_symbol);
+
+        (configRes.data as { key: string; value: string }[]).forEach((row) => {
+          map[row.key] = row.value;
+        });
+
+        if (map.default_currency) {
+          setCurrency(map.default_currency);
+        }
+
+        if (map.currency_symbol) {
+          setCurrencySymbol(map.currency_symbol);
+        }
+
         const rate = parseFloat(map.exchange_rate_usd || '3.72');
-        if (!isNaN(rate) && rate > 0) setExchangeRate(rate);
+
+        if (!isNaN(rate) && rate > 0) {
+          setExchangeRate(rate);
+        }
+
         setCompany(map);
+
         setTax({
           enabled: map.igv_enabled === 'true',
           rate: parseFloat(map.igv_rate || '18') || 18,
@@ -117,37 +179,44 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           name: map.tax_name || 'IGV',
         });
       }
-    } catch {
+    } catch (error) {
       // Non-fatal: use defaults already set in state
+      console.error('Error loading configuration:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [database]);
 
   useEffect(() => {
     refresh();
 
-    const plansChannel = supabase.channel('plans-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, () => refresh())
-      .subscribe();
-
-    const ranksChannel = supabase.channel('ranks-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ranks' }, () => refresh())
-      .subscribe();
-
-    const configChannel = supabase.channel('config-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config' }, () => refresh())
-      .subscribe();
+    const unsubPlans = database.subscribe('plans', refresh);
+    const unsubRanks = database.subscribe('ranks', refresh);
+    const unsubConfig = database.subscribe('system_config', refresh);
 
     return () => {
-      supabase.removeChannel(plansChannel);
-      supabase.removeChannel(ranksChannel);
-      supabase.removeChannel(configChannel);
+      unsubPlans();
+      unsubRanks();
+      unsubConfig();
     };
-  }, [refresh]);
+  }, [refresh, database]);
 
   return (
-    <ConfigContext.Provider value={{ plans, ranks, currency, currencySymbol, exchangeRate, company, tax, loading, showUsd, setShowUsd, refresh }}>
+    <ConfigContext.Provider
+      value={{
+        plans,
+        ranks,
+        currency,
+        currencySymbol,
+        exchangeRate,
+        company,
+        tax,
+        loading,
+        showUsd,
+        setShowUsd,
+        refresh,
+      }}
+    >
       {children}
     </ConfigContext.Provider>
   );
@@ -157,10 +226,16 @@ export function useConfig() {
   return useContext(ConfigContext);
 }
 
-export function formatPrice(amount: number, currency: string, symbol: string, rate: number) {
+export function formatPrice(
+  amount: number,
+  currency: string,
+  symbol: string,
+  rate: number
+) {
   if (currency === 'USD') {
     const usd = Math.round(amount / rate);
     return `USD ${usd}`;
   }
+
   return `${symbol} ${amount}`;
 }

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Mail, Lock, TrendingUp, Users, DollarSign, Sun, Moon, Boxes, ArrowRight, Shield, CircleCheck as CheckCircle, X } from 'lucide-react';
+import { Mail, Lock, TrendingUp, Users, DollarSign, Sun, Moon, Boxes, ArrowRight, Shield, CircleCheck as CheckCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const schema = z.object({
@@ -22,7 +22,6 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { theme, setTheme } = useThemeStore();
   const { user } = useAuthStore();
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -36,7 +35,8 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      email: localStorage.getItem('mlm360-remembered-email') || '',
+      email: localStorage.getItem('mlm360-remembered-email') || 'whastavo@gmail.com',
+      password: 'Elgop365102.',
       remember: !!localStorage.getItem('mlm360-remembered-email'),
     },
   });
@@ -56,7 +56,6 @@ export default function LoginPage() {
       toast.error(msg);
       setLoading(false);
     } else {
-      // Remember session: store email for pre-fill next time
       if (data.remember) {
         localStorage.setItem('mlm360-remembered-email', data.email);
       } else {
@@ -231,17 +230,14 @@ export default function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type="password"
                     {...register('password')}
                     placeholder="••••••••"
                     className={cn(
-                      'w-full pl-9 pr-10 py-2.5 bg-muted border rounded-xl text-foreground text-sm placeholder:text-muted-foreground outline-none transition-colors',
+                      'w-full pl-9 pr-4 py-2.5 bg-muted border rounded-xl text-foreground text-sm placeholder:text-muted-foreground outline-none transition-colors',
                       errors.password ? 'border-destructive' : 'border-border focus:border-primary'
                     )}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
                 {errors.password && <p className="text-destructive text-xs mt-1">{errors.password.message}</p>}
               </div>
