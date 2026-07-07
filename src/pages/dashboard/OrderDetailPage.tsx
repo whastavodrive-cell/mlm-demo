@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 
 import { useNavigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import type { Order, OrderTracking } from '@/lib/storeTypes';
-import { ChevronLeft, Package, Truck, CircleCheck as CheckCircle, Clock, Circle as XCircle, Loader as Loader2, Printer, MapPin, Phone, ExternalLink, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Package, Truck, CircleCheck as CheckCircle, Clock, Circle as XCircle, Printer, MapPin, Phone, ExternalLink, RefreshCw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function fmt(n: number) { return `S/ ${n.toFixed(2)}`; }
 
@@ -96,6 +97,7 @@ function Invoice({ order, company }: { order: Order; company: any }) {
 }
 
 export default function OrderDetailPage() {
+  const database = useDatabase();
   const orderId = window.location.pathname.split('/').pop() || '';
   // const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -108,12 +110,12 @@ export default function OrderDetailPage() {
     if (!orderId) return;
     setLoading(true);
     const [{ data: o }, { data: t }, { data: cfg }] = await Promise.all([
-      supabase.from('orders').select('*, items:order_items(*)').eq('id', orderId).maybeSingle(),
-      supabase.from('order_tracking').select('*').eq('order_id', orderId).order('created_at'),
-      supabase.from('system_config').select('key,value'),
+      database.select<Order>('orders', { select: '*, items:order_items(*)', filter: { id: orderId }, maybeSingle: true }),
+      database.select<OrderTracking>('order_tracking', { filter: { order_id: orderId }, order: { column: 'created_at' } }),
+      database.select<{ key: string; value: string }>('system_config', { select: 'key,value' }),
     ]);
-    if (o) setOrder({ ...(o as Order), tracking: t || [] });
-    setTracking(t || []);
+    if (o) setOrder({ ...(o as Order), tracking: (t as OrderTracking[]) || [] });
+    setTracking((t as OrderTracking[]) || []);
     if (cfg) {
       const c: Record<string, string> = {};
       (cfg as any[]).forEach(r => { c[r.key] = r.value; });
@@ -127,14 +129,28 @@ export default function OrderDetailPage() {
   // Realtime tracking
   useEffect(() => {
     if (!orderId) return;
-    const ch = supabase.channel(`tracking-${orderId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_tracking', filter: `order_id=eq.${orderId}` },
-        payload => setTracking(prev => [...prev, payload.new as OrderTracking]))
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const unsubscribe = database.subscribe('order_tracking',
+      payload => setTracking(prev => [...prev, (payload as any).new as OrderTracking]),
+      { event: 'INSERT', filter: `order_id=eq.${orderId}` });
+    return () => { unsubscribe(); };
   }, [orderId]);
 
-  if (loading) return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3"><Skeleton className="w-5 h-5 rounded" /><div className="space-y-1"><Skeleton className="h-6 w-36" /><Skeleton className="h-3 w-40" /></div></div>
+      <Skeleton className="h-20 w-full rounded-2xl" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 space-y-3">
+          <Skeleton className="h-4 w-24 mb-2" />
+          {Array.from({length:3}).map((_,i)=>(<div key={i} className="flex items-center gap-3"><Skeleton className="w-12 h-12 rounded-xl flex-shrink-0" /><div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-16" /></div><Skeleton className="h-4 w-16" /></div>))}
+        </div>
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-2">{Array.from({length:5}).map((_,i)=>(<div key={i} className="flex justify-between"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-16" /></div>))}</div>
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-2">{Array.from({length:4}).map((_,i)=>(<Skeleton key={i} className="h-4 w-full" />))}</div>
+        </div>
+      </div>
+    </div>
+  );
   if (!order) return (
     <div className="text-center py-16 text-muted-foreground">
       <p>Pedido no encontrado</p>

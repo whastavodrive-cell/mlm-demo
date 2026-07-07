@@ -1,12 +1,13 @@
 import {
-  useState, useRef, useEffect, useCallback, useMemo, WheelEvent,
+  useState, useRef, useEffect, useMemo, WheelEvent,
   PointerEvent as RPointerEvent, TouchEvent as RTouchEvent,
 } from 'react';
-import { supabase, type Profile } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Users, UserPlus, RefreshCw, ZoomIn, ZoomOut, Maximize2, List, Network, Search, X, Loader as Loader2, Copy, CircleCheck as CheckCircle, Link2, Medal, Award, Gem, Disc, Crown, ChevronRight, Move, CreditCard as Edit2, Trash2, Eye, Send, Mail, UserCheck, TrendingDown, TriangleAlert as AlertTriangle, Star, Plus } from 'lucide-react';
+import { useNetwork, type Profile } from '@/modules/mlm';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NetProfile extends Profile {
@@ -53,10 +54,11 @@ function buildTree(profiles: Profile[], rootId: string): NetProfile {
     }
   });
 
-  // Assign depths and subtreeSizes
-  function annotate(node: NetProfile, d: number): number {
+  function annotate(node: NetProfile, d: number, seen: Set<string> = new Set()): number {
+    if (seen.has(node.id)) return 0;
+    seen.add(node.id);
     node.depth = d;
-    node.subtreeSize = 1 + (node.children || []).reduce((s, c) => s + annotate(c, d + 1), 0);
+    node.subtreeSize = 1 + (node.children || []).reduce((s, c) => s + annotate(c, d + 1, seen), 0);
     return node.subtreeSize;
   }
   const root = map.get(rootId) || {
@@ -70,7 +72,6 @@ function buildTree(profiles: Profile[], rootId: string): NetProfile {
   return root;
 }
 
-// Reingold–Tilford-like layout
 interface Pos { x: number; y: number }
 const nodePositions = new Map<string, Pos>();
 
@@ -149,7 +150,6 @@ function TreeCanvas({
   selfId: string;
   onNodeClick: (n: NetProfile) => void;
 }) {
-  // Re-compute layout every render (positions map is module-level, reset here)
   nodePositions.clear();
   layout(root);
 
@@ -179,7 +179,6 @@ function TreeCanvas({
         </filter>
       </defs>
 
-      {/* Edges */}
       {allEdges.map(({ from, to }) => {
         const p1 = nodePositions.get(from);
         const p2 = nodePositions.get(to);
@@ -201,7 +200,6 @@ function TreeCanvas({
         );
       })}
 
-      {/* Nodes */}
       {allNodes.map(node => {
         const pos = nodePositions.get(node.id);
         if (!pos) return null;
@@ -222,7 +220,6 @@ function TreeCanvas({
             role="button"
             aria-label={node.full_name || node.username}
           >
-            {/* Card — borde con color de rango */}
             <rect
               x={0} y={0} width={NODE_W} height={NODE_H} rx={14}
               fill={isSelf ? rc.color + '12' : 'hsl(var(--card))'}
@@ -231,7 +228,6 @@ function TreeCanvas({
               filter={isSelf ? 'url(#glow)' : 'url(#shadow)'}
             />
 
-            {/* Avatar círculo con color de rango */}
             <clipPath id={`clip-${node.id}`}>
               <circle cx={28} cy={NODE_H / 2} r={20} />
             </clipPath>
@@ -252,7 +248,6 @@ function TreeCanvas({
               </>
             ) : (
               <>
-                {/* Fondo avatar con color de rango */}
                 <circle cx={28} cy={NODE_H / 2} r={21}
                   fill={rc.color + '20'}
                   stroke={rc.color}
@@ -268,7 +263,6 @@ function TreeCanvas({
               </>
             )}
 
-            {/* Nombre */}
             <text x={60} y={28} fontSize={12} fontWeight="700"
               fill="hsl(var(--foreground))"
               style={{ pointerEvents: 'none' }}
@@ -276,7 +270,6 @@ function TreeCanvas({
               {(node.full_name || node.username || 'Sin nombre').split(' ')[0].slice(0, 11)}
             </text>
 
-            {/* Rango con color */}
             <text x={60} y={43} fontSize={10} fontWeight="600"
               fill={rc.color}
               style={{ pointerEvents: 'none' }}
@@ -284,7 +277,6 @@ function TreeCanvas({
               {rc.label}
             </text>
 
-            {/* Plan pill */}
             <rect x={60} y={50} width={50} height={14} rx={7}
               fill={planColor + '1a'}
             />
@@ -295,7 +287,6 @@ function TreeCanvas({
               {plan.toUpperCase().slice(0, 7)}
             </text>
 
-            {/* Hijos badge — esquina superior derecha */}
             {(node.children || []).length > 0 && (
               <g transform={`translate(${NODE_W - 20}, 4)`}>
                 <circle cx={8} cy={8} r={9}
@@ -312,7 +303,6 @@ function TreeCanvas({
               </g>
             )}
 
-            {/* YOU badge */}
             {isSelf && (
               <g transform={`translate(${NODE_W / 2 - 16}, -13)`}>
                 <rect x={0} y={0} width={32} height={15} rx={7.5}
@@ -324,14 +314,12 @@ function TreeCanvas({
               </g>
             )}
 
-            {/* Status dot */}
             <circle cx={NODE_W - 7} cy={NODE_H - 7} r={4.5}
               fill={node.status === 'active' ? '#22c55e' : node.status === 'suspended' ? '#ef4444' : '#f59e0b'}
               stroke="hsl(var(--card))"
               strokeWidth={1.5}
             />
 
-            {/* Posición tag — inferior izquierda */}
             {node.binary_position && (
               <g transform={`translate(7, ${NODE_H - 17})`}>
                 <rect x={0} y={0} width={30} height={12} rx={6}
@@ -396,6 +384,8 @@ function AddMemberModal({
   allowAssignExisting,
   onClose,
   onAdded,
+  onAddReferral,
+  onAssignExisting,
 }: {
   sponsorId: string;
   sponsorName: string;
@@ -403,21 +393,21 @@ function AddMemberModal({
   allowAssignExisting: boolean;
   onClose: () => void;
   onAdded: () => void;
+  onAddReferral: (params: { sponsorId: string; fullName: string; email: string; username?: string; position?: 'left' | 'right' }) => Promise<{ success: boolean; error?: string }>;
+  onAssignExisting: (params: { userId: string; sponsorId: string; position: 'left' | 'right' }) => Promise<{ success: boolean; error?: string }>;
 }) {
   const { user } = useAuthStore();
   const [mode, setMode] = useState<AddMode>('new');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied]   = useState(false);
-  const [form, setForm] = useState({ full_name: '', email: '', username: '', position: 'left' });
+  const [form, setForm] = useState({ full_name: '', email: '', username: '', position: 'left' as 'left' | 'right' });
   const [existingQ, setExistingQ]  = useState('');
   const [existingId, setExistingId] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
 
-  // Current user's invite link
   const myCode = user?.referral_code || '';
   const inviteLink = myCode ? `${window.location.origin}/registro?ref=${myCode}` : '';
 
-  // Auto-fill username from full_name
   useEffect(() => {
     if (mode !== 'new' || !form.full_name) return;
     const auto = form.full_name.toLowerCase()
@@ -437,7 +427,7 @@ function AddMemberModal({
   const filteredExisting = useMemo(() => {
     const q = existingQ.toLowerCase();
     return allProfiles
-      .filter(p => p.id !== sponsorId && !p.sponsor_id)  // only unlinked
+      .filter(p => p.id !== sponsorId && !p.sponsor_id)
       .filter(p => !q || `${p.full_name || ''} ${p.username || ''} ${p.email || ''}`.toLowerCase().includes(q))
       .slice(0, 15);
   }, [allProfiles, sponsorId, existingQ]);
@@ -445,18 +435,18 @@ function AddMemberModal({
   const handleAddNew = async () => {
     if (!form.full_name.trim() || !form.email.trim()) { toast.error('Completa nombre y correo'); return; }
     setLoading(true);
-    const { data, error } = await supabase.rpc('add_referral_direct', {
-      p_sponsor_id: sponsorId,
-      p_full_name:  form.full_name.trim(),
-      p_email:      form.email.trim().toLowerCase(),
-      p_username:   form.username || form.full_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-      p_position:   form.position,
+    const result = await onAddReferral({
+      sponsorId,
+      fullName: form.full_name.trim(),
+      email: form.email.trim().toLowerCase(),
+      username: form.username || form.full_name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+      position: form.position,
     });
-    if (error || !(data as any)?.success) {
-      toast.error((data as any)?.error || error?.message || 'Error al crear el afiliado');
-    } else {
+    if (result.success) {
       toast.success(`${form.full_name} agregado a la red. Contraseña: Temp123456!`);
       onAdded(); onClose();
+    } else {
+      toast.error(result.error || 'Error al crear el afiliado');
     }
     setLoading(false);
   };
@@ -464,16 +454,16 @@ function AddMemberModal({
   const handleAssignExisting = async () => {
     if (!existingId) { toast.error('Selecciona un usuario'); return; }
     setLoading(true);
-    const { data, error } = await supabase.rpc('assign_existing_user_to_network', {
-      p_user_id:    existingId,
-      p_sponsor_id: sponsorId,
-      p_position:   form.position,
+    const result = await onAssignExisting({
+      userId: existingId,
+      sponsorId,
+      position: form.position,
     });
-    if (error || !(data as any)?.success) {
-      toast.error((data as any)?.error || error?.message || 'Error al asignar el usuario');
-    } else {
+    if (result.success) {
       toast.success('Usuario asignado a la red');
       onAdded(); onClose();
+    } else {
+      toast.error(result.error || 'Error al asignar el usuario');
     }
     setLoading(false);
   };
@@ -481,8 +471,6 @@ function AddMemberModal({
   const handleSendInvite = async () => {
     if (!inviteEmail.trim()) { toast.error('Ingresa un correo'); return; }
     setLoading(true);
-    // Log invitation attempt — in production this would trigger an email edge function
-    await supabase.from('system_config').select('key').limit(1); // keep connection alive
     toast.success(`Invitación registrada para ${inviteEmail}. Comparte el enlace manualmente.`);
     setLoading(false);
     onClose();
@@ -498,13 +486,11 @@ function AddMemberModal({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg shadow-2xl flex flex-col max-h-[90vh] z-10">
-        
-        {/* Handle (mobile) */}
+
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
             <h3 className="text-base font-bold text-foreground">Agregar afiliado</h3>
@@ -517,7 +503,6 @@ function AddMemberModal({
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-border bg-muted/40 overflow-x-auto">
           {tabs.map(t => (
             <button
@@ -536,10 +521,8 @@ function AddMemberModal({
           ))}
         </div>
 
-        {/* Content */}
         <div className="overflow-y-auto flex-1 p-5">
 
-          {/* ── Tab: Crear nuevo ── */}
           {mode === 'new' && (
             <div className="space-y-4">
               <div>
@@ -567,7 +550,7 @@ function AddMemberModal({
                     {[{ v: 'left', label: 'Izq', color: 'blue' }, { v: 'right', label: 'Der', color: 'orange' }].map(pos => (
                       <button
                         key={pos.v}
-                        onClick={() => setForm(p => ({ ...p, position: pos.v }))}
+                        onClick={() => setForm(p => ({ ...p, position: pos.v as 'left' | 'right' }))}
                         className={cn(
                           'flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-all',
                           form.position === pos.v
@@ -610,7 +593,6 @@ function AddMemberModal({
             </div>
           )}
 
-          {/* ── Tab: Asignar existente ── */}
           {mode === 'existing' && (
             <div className="space-y-4">
               <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-3">
@@ -663,9 +645,7 @@ function AddMemberModal({
                           <p className="text-xs text-muted-foreground truncate">{p.email}</p>
                         </div>
                         <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                          RANKS[p.rank || 'bronze']
-                            ? 'bg-muted'
-                            : 'bg-muted',
+                          RANKS[p.rank || 'bronze'] ? 'bg-muted' : 'bg-muted',
                         )} style={{ color: RANKS[p.rank || 'bronze']?.color || '#888' }}>
                           {RANKS[p.rank || 'bronze']?.label || p.rank}
                         </span>
@@ -681,7 +661,7 @@ function AddMemberModal({
                   {[{ v: 'left', label: 'Izquierda', color: 'blue' }, { v: 'right', label: 'Derecha', color: 'orange' }].map(pos => (
                     <button
                       key={pos.v}
-                      onClick={() => setForm(p => ({ ...p, position: pos.v }))}
+                      onClick={() => setForm(p => ({ ...p, position: pos.v as 'left' | 'right' }))}
                       className={cn(
                         'py-3 rounded-xl text-sm font-bold border-2 transition-all',
                         form.position === pos.v
@@ -708,7 +688,6 @@ function AddMemberModal({
             </div>
           )}
 
-          {/* ── Tab: Invitar ── */}
           {mode === 'invite' && (
             <div className="space-y-4">
               <div>
@@ -777,6 +756,7 @@ function AddMemberModal({
 // ─── Node Detail Drawer ───────────────────────────────────────────────────────
 function NodeDrawer({
   node, allProfiles, isAdmin, onClose, onRefresh, onAddChild,
+  onUpdateProfile, onUnlink, onMoveUser,
 }: {
   node: NetProfile;
   allProfiles: Profile[];
@@ -784,6 +764,9 @@ function NodeDrawer({
   onClose: () => void;
   onRefresh: () => void;
   onAddChild: (sponsorId: string, name: string) => void;
+  onUpdateProfile: (userId: string, updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
+  onUnlink: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  onMoveUser: (params: { userId: string; newSponsorId: string; position: 'left' | 'right' }) => Promise<{ success: boolean; error?: string }>;
 }) {
   const { user } = useAuthStore();
   const [tab, setTab] = useState<'info' | 'edit' | 'move' | 'delete'>('info');
@@ -823,35 +806,47 @@ function NodeDrawer({
       plan:            form.plan,
       status:          form.status,
       binary_position: form.binary_position,
-      updated_at:      new Date().toISOString(),
     };
     if (isAdmin) {
       if (form.referral_code.trim()) updates.referral_code = form.referral_code.trim().toUpperCase();
       updates.invite_link = form.invite_link.trim() || null;
     }
-    const { error } = await supabase.from('profiles').update(updates).eq('id', node.id);
-    if (error) toast.error(error.message);
-    else { toast.success('Perfil actualizado'); onRefresh(); onClose(); }
+    const result = await onUpdateProfile(node.id, updates);
+    if (result.success) {
+      toast.success('Perfil actualizado');
+      onRefresh(); onClose();
+    } else {
+      toast.error(result.error || 'Error');
+    }
     setSaving(false);
   };
 
   const move = async () => {
     if (!newSponsorId) { toast.error('Selecciona un patrocinador'); return; }
     setSaving(true);
-    const { data, error } = await supabase.rpc('move_user_in_network', {
-      p_user_id: node.id, p_new_sponsor_id: newSponsorId, p_position: movePos,
+    const result = await onMoveUser({
+      userId: node.id,
+      newSponsorId,
+      position: movePos,
     });
-    if (error || !(data as any)?.success) {
-      toast.error((data as any)?.error || error?.message || 'Error');
-    } else { toast.success('Usuario movido'); onRefresh(); onClose(); }
+    if (result.success) {
+      toast.success('Usuario movido');
+      onRefresh(); onClose();
+    } else {
+      toast.error(result.error || 'Error');
+    }
     setSaving(false);
   };
 
   const remove = async () => {
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({ sponsor_id: null, updated_at: new Date().toISOString() }).eq('id', node.id);
-    if (error) toast.error(error.message);
-    else { toast.success('Usuario desvinculado de la red'); onRefresh(); onClose(); }
+    const result = await onUnlink(node.id);
+    if (result.success) {
+      toast.success('Usuario desvinculado de la red');
+      onRefresh(); onClose();
+    } else {
+      toast.error(result.error || 'Error');
+    }
     setSaving(false);
   };
 
@@ -874,12 +869,10 @@ function NodeDrawer({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-card border border-border rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl flex flex-col max-h-[90vh] z-10">
 
-        {/* Handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
         </div>
 
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Avatar p={node} size={44} />
@@ -903,7 +896,6 @@ function NodeDrawer({
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-border">
           {tabs.map(t => (
             <button
@@ -920,7 +912,6 @@ function NodeDrawer({
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-3">
-          {/* INFO */}
           {tab === 'info' && (
             <>
               {[
@@ -936,9 +927,9 @@ function NodeDrawer({
                 ['Código referido', node.referral_code || '—'],
                 ['En red desde',    node.created_at ? new Date(node.created_at).toLocaleDateString('es-PE') : '—'],
               ].map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-0">
-                  <span className="text-xs text-muted-foreground">{k}</span>
-                  <span className="text-xs font-semibold text-foreground text-right max-w-[60%] truncate">{v}</span>
+                <div key={k as string} className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-0">
+                  <span className="text-xs text-muted-foreground">{k as string}</span>
+                  <span className="text-xs font-semibold text-foreground text-right max-w-[60%] truncate">{v as string}</span>
                 </div>
               ))}
               {inviteLink && (
@@ -963,7 +954,6 @@ function NodeDrawer({
             </>
           )}
 
-          {/* EDIT */}
           {tab === 'edit' && (
             <div className="space-y-3">
               <div>
@@ -1018,7 +1008,6 @@ function NodeDrawer({
             </div>
           )}
 
-          {/* MOVE */}
           {tab === 'move' && (
             <div className="space-y-3">
               <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-3">
@@ -1076,11 +1065,9 @@ function NodeDrawer({
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-4 border-t border-border flex-shrink-0 space-y-2">
           {tab === 'info' && !delConfirm && (
             <div className="space-y-2">
-              {/* Agregar hijo — admin puede agregar afiliados bajo cualquier nodo de su red */}
               {isAdmin && (
                 <button
                   onClick={() => { onClose(); onAddChild(node.id, node.full_name || node.username || 'este nodo'); }}
@@ -1227,10 +1214,9 @@ function ListView({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function NetworkPage() {
   const { user } = useAuthStore();
-  const [profiles, setProfiles]   = useState<Profile[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+
   const [viewMode, setViewMode]   = useState<ViewMode>('tree');
-  const [rootId, setRootId]       = useState<string>('');
   const [selected, setSelected]   = useState<NetProfile | null>(null);
   const [addModal, setAddModal]   = useState(false);
   const [addSponsorId, setAddSponsorId] = useState('');
@@ -1239,76 +1225,41 @@ export default function NetworkPage() {
   const [rankFilter, setRankFilter] = useState('all');
   const [zoom, setZoom]   = useState(0.9);
   const [pan, setPan]     = useState({ x: 40, y: 40 });
-  const [allowAssignExisting, setAllowAssignExisting] = useState(true);
   const isDragging = useRef(false);
   const dragOrigin = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const pinchDist  = useRef(0);
   const canvasRef  = useRef<HTMLDivElement>(null);
 
-  const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+  const {
+    profiles,
+    loading,
+    refresh,
+    addReferral,
+    assignExistingUser,
+    moveUser,
+    updateProfile,
+    unlinkUser,
+    allowAssignExisting,
+  } = useNetwork({
+    userId: user?.id || '',
+    isAdmin,
+    viewAllNetwork: viewAllNet,
+    maxDepth: 6,
+  });
 
-  // ── Fetch all data ──────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // Fetch config
-      const { data: cfgData } = await supabase
-        .from('system_config')
-        .select('key, value')
-        .in('key', ['allow_assign_existing_user']);
-      if (cfgData) {
-        const cfg: Record<string, string> = {};
-        cfgData.forEach((r: any) => { cfg[r.key] = r.value; });
-        setAllowAssignExisting(cfg.allow_assign_existing_user !== 'false');
-      }
-
-      let data: Profile[] = [];
-      if (isAdmin && viewAllNet) {
-        const { data: all } = await supabase
-          .from('profiles')
-          .select('id,username,full_name,email,rank,plan,status,sponsor_id,binary_position,avatar_url,referral_code,invite_link,role,created_at,updated_at')
-          .order('created_at');
-        data = all || [];
-        // Root: first user with no sponsor, or admin user
-        const root = data.find(p => !p.sponsor_id) || data.find(p => p.id === user.id) || data[0];
-        setRootId(root?.id || user.id);
-      } else {
-        // Fetch self + downline BFS (5 levels)
-        const { data: self } = await supabase
-          .from('profiles')
-          .select('id,username,full_name,email,rank,plan,status,sponsor_id,binary_position,avatar_url,referral_code,invite_link,role,created_at,updated_at')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (self) data.push(self);
-        let frontier = [user.id];
-        for (let depth = 0; depth < 6 && frontier.length > 0; depth++) {
-          const { data: kids } = await supabase
-            .from('profiles')
-            .select('id,username,full_name,email,rank,plan,status,sponsor_id,binary_position,avatar_url,referral_code,invite_link,role,created_at,updated_at')
-            .in('sponsor_id', frontier);
-          const newKids = (kids || []).filter(k => !data.find(p => p.id === k.id));
-          data.push(...newKids);
-          frontier = newKids.map(k => k.id);
-        }
-        setRootId(user.id);
-      }
-      setProfiles(data);
-    } catch (e) {
-      console.error(e);
-      toast.error('Error al cargar la red');
-    } finally {
-      setLoading(false);
+  const currentRootId = useMemo(() => {
+    if (isAdmin && viewAllNet) {
+      const root = profiles.find(p => !p.sponsor_id) || profiles.find(p => p.id === user?.id) || profiles[0];
+      return root?.id || user?.id || '';
     }
-  }, [user, isAdmin, viewAllNet]);
+    return user?.id || '';
+  }, [profiles, user?.id, isAdmin, viewAllNet]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setZoom(0.9); setPan({ x: 40, y: 40 }); }, [rootId, viewAllNet, viewMode]);
+  useEffect(() => { setZoom(0.9); setPan({ x: 40, y: 40 }); }, [currentRootId, viewAllNet, viewMode]);
 
-  // ── Build tree ──────────────────────────────────────────────────────────────
   const tree = useMemo(() => {
-    if (!rootId || profiles.length === 0) return null;
-    const raw = buildTree(profiles, rootId);
+    if (!currentRootId || profiles.length === 0) return null;
+    const raw = buildTree(profiles, currentRootId);
     if (rankFilter === 'all') return raw;
     function filterRank(n: NetProfile): NetProfile | null {
       const fc = (n.children || []).map(filterRank).filter(Boolean) as NetProfile[];
@@ -1316,9 +1267,8 @@ export default function NetworkPage() {
       return null;
     }
     return filterRank(raw);
-  }, [profiles, rootId, rankFilter]);
+  }, [profiles, currentRootId, rankFilter]);
 
-  // ── Pointer pan ─────────────────────────────────────────────────────────────
   const onPtrDown = (e: RPointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     isDragging.current = true;
@@ -1333,7 +1283,6 @@ export default function NetworkPage() {
   };
   const onPtrUp = () => { isDragging.current = false; };
 
-  // ── Touch pinch zoom ─────────────────────────────────────────────────────────
   const onTouchMove = (e: RTouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 2) {
       const d = Math.hypot(
@@ -1363,11 +1312,70 @@ export default function NetworkPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-72 gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Loader2 className="w-7 h-7 text-primary animate-spin" />
+      <div className="space-y-5">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1.5">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24 rounded-xl" />
+            <Skeleton className="h-9 w-24 rounded-xl" />
+            <Skeleton className="h-9 w-9 rounded-xl" />
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground font-medium">Cargando red genealógica...</p>
+
+        {/* 4 stat cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
+              <Skeleton className="w-10 h-10 rounded-xl flex-shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-6 w-12" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tree canvas skeleton – simplified node/edge representation */}
+        <div className="bg-card border border-border rounded-2xl overflow-hidden" style={{ height: 480 }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <Skeleton className="h-4 w-32" />
+            <div className="flex gap-1">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-8 rounded-lg" />)}
+            </div>
+          </div>
+          <div className="relative w-full" style={{ height: 432 }}>
+            {/* Root node */}
+            <div className="absolute" style={{ left: '50%', top: 40, transform: 'translateX(-50%)' }}>
+              <Skeleton className="w-16 h-16 rounded-full" />
+              <Skeleton className="h-3 w-24 mt-2 mx-auto" />
+            </div>
+            {/* Connector line down */}
+            <div className="absolute" style={{ left: '50%', top: 112, width: 2, height: 40, transform: 'translateX(-50%)', background: 'hsl(var(--border))' }} />
+            {/* Level-2 horizontal line */}
+            <div className="absolute" style={{ left: '20%', top: 152, width: '60%', height: 2, background: 'hsl(var(--border))' }} />
+            {/* Level-2 nodes – 3 nodes */}
+            {[20, 45, 70].map((left, i) => (
+              <div key={i} className="absolute" style={{ left: `${left}%`, top: 154, transform: 'translateX(-50%)' }}>
+                <div className="absolute" style={{ left: '50%', top: -2, width: 2, height: 30, transform: 'translateX(-50%)', background: 'hsl(var(--border))' }} />
+                <div className="mt-7">
+                  <Skeleton className="w-12 h-12 rounded-full" />
+                  <Skeleton className="h-3 w-16 mt-1.5 mx-auto" />
+                </div>
+              </div>
+            ))}
+            {/* Level-3 hint nodes */}
+            {[12, 28, 55, 65].map((left, i) => (
+              <div key={i} className="absolute" style={{ left: `${left}%`, top: 260, transform: 'translateX(-50%)' }}>
+                <Skeleton className="w-10 h-10 rounded-full opacity-50" />
+                <Skeleton className="h-2 w-12 mt-1 mx-auto opacity-50" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1377,7 +1385,6 @@ export default function NetworkPage() {
   return (
     <div className="space-y-5">
 
-      {/* ── Page header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">Red Genealógica</h1>
@@ -1407,7 +1414,7 @@ export default function NetworkPage() {
             <UserPlus className="w-3.5 h-3.5" /> Agregar
           </button>
           <button
-            onClick={fetchData}
+            onClick={refresh}
             className="p-2 border border-border rounded-xl hover:bg-muted text-muted-foreground transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
@@ -1429,10 +1436,8 @@ export default function NetworkPage() {
         </div>
       </div>
 
-      {/* ── Stats ─────────────────────────────────────────────────────────────── */}
       <StatsBar tree={tree} profiles={profiles} />
 
-      {/* ── Rank filter ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setRankFilter('all')}
@@ -1457,7 +1462,6 @@ export default function NetworkPage() {
         ))}
       </div>
 
-      {/* ── Main content ─────────────────────────────────────────────────────── */}
       {!tree ? (
         <div className="flex flex-col items-center justify-center py-24 gap-5 bg-card border border-border rounded-2xl">
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
@@ -1476,7 +1480,6 @@ export default function NetworkPage() {
         </div>
       ) : viewMode === 'tree' ? (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          {/* Toolbar */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 gap-2 flex-wrap">
             <p className="text-xs text-muted-foreground hidden sm:block">
               Arrastra · Scroll para zoom · Toca un nodo para ver detalle
@@ -1501,7 +1504,6 @@ export default function NetworkPage() {
             </div>
           </div>
 
-          {/* Canvas */}
           <div
             ref={canvasRef}
             className="overflow-hidden cursor-grab active:cursor-grabbing touch-none bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.08)_1px,transparent_0)] bg-[size:24px_24px]"
@@ -1524,13 +1526,12 @@ export default function NetworkPage() {
             >
               <TreeCanvas
                 root={tree}
-                selfId={rootId}
+                selfId={currentRootId}
                 onNodeClick={n => setSelected(n)}
               />
             </div>
           </div>
 
-          {/* Quick add floating hint */}
           <div className="border-t border-border px-4 py-2 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
             <span>{countTree(tree)} nodo{countTree(tree) !== 1 ? 's' : ''} en el árbol</span>
             <button
@@ -1547,7 +1548,6 @@ export default function NetworkPage() {
         </div>
       )}
 
-      {/* ── Modals ───────────────────────────────────────────────────────────── */}
       {addModal && (
         <AddMemberModal
           sponsorId={addSponsorId}
@@ -1555,7 +1555,9 @@ export default function NetworkPage() {
           allProfiles={profiles}
           allowAssignExisting={allowAssignExisting && isAdmin}
           onClose={() => setAddModal(false)}
-          onAdded={fetchData}
+          onAdded={refresh}
+          onAddReferral={addReferral}
+          onAssignExisting={assignExistingUser}
         />
       )}
 
@@ -1565,13 +1567,16 @@ export default function NetworkPage() {
           allProfiles={profiles}
           isAdmin={isAdmin}
           onClose={() => setSelected(null)}
-          onRefresh={() => { setSelected(null); fetchData(); }}
+          onRefresh={() => { setSelected(null); refresh(); }}
           onAddChild={(sponsorId, sponsorName) => {
             setSelected(null);
             setAddSponsorId(sponsorId);
             setAddSponsorName(sponsorName);
             setAddModal(true);
           }}
+          onUpdateProfile={updateProfile}
+          onUnlink={unlinkUser}
+          onMoveUser={moveUser}
         />
       )}
     </div>

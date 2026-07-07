@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Order } from '@/lib/storeTypes';
-import { Search, Loader as Loader2, RefreshCw, ChevronRight } from 'lucide-react';
+import { Search, RefreshCw, ChevronRight } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate } from '@/lib/router';
 
 function fmt(n: number) { return `S/ ${n.toFixed(2)}`; }
@@ -28,13 +29,15 @@ export default function OrdersAdminPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
 
+  const database = useDatabase();
+
   const load = useCallback(async () => {
     setLoading(true);
-    let q = supabase.from('orders')
-      .select('*, items:order_items(id,product_name,image_url,quantity)')
-      .order('created_at', { ascending: false });
-    if (statusFilter) q = q.eq('status', statusFilter);
-    const { data } = await q;
+    const { data } = await database.select<Order>('orders', {
+      select: '*, items:order_items(id,product_name,image_url,quantity)',
+      order: { column: 'created_at', ascending: false },
+      ...(statusFilter ? { filter: { status: statusFilter } } : {}),
+    });
     let list = (data as Order[]) || [];
     if (search) list = list.filter(o =>
       o.order_number.toLowerCase().includes(search.toLowerCase()) ||
@@ -42,7 +45,7 @@ export default function OrdersAdminPage() {
     );
     setOrders(list);
     setLoading(false);
-  }, [statusFilter, search]);
+  }, [statusFilter, search, database]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -53,8 +56,8 @@ export default function OrdersAdminPage() {
     if (status === 'delivered') extra.delivered_at = new Date().toISOString();
     if (status === 'cancelled') extra.cancelled_at = new Date().toISOString();
 
-    const { error } = await supabase.from('orders').update({ status, ...extra, updated_at: new Date().toISOString() }).eq('id', orderId);
-    if (error) { toast.error(error.message); setUpdating(null); return; }
+    const { error } = await database.update('orders', orderId, { status, ...extra, updated_at: new Date().toISOString() });
+    if (error) { toast.error(error); setUpdating(null); return; }
 
     const trackDesc: Record<string, string> = {
       confirmed:  'Pedido confirmado — en preparación',
@@ -64,13 +67,13 @@ export default function OrdersAdminPage() {
       cancelled:  'Pedido cancelado',
     };
     if (trackDesc[status]) {
-      await supabase.from('order_tracking').insert({ order_id: orderId, status, description: trackDesc[status] });
+      await database.insert('order_tracking', { order_id: orderId, status, description: trackDesc[status] });
     }
     // Payment status for delivered
     if (status === 'delivered') {
-      await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', orderId);
+      await database.update('orders', orderId, { payment_status: 'paid' });
       // Approve commissions
-      await supabase.from('commissions').update({ status: 'approved' }).eq('reference_id', orderId).eq('status', 'pending');
+      await database.update('commissions', { reference_id: orderId, status: 'pending' }, { status: 'approved' });
     }
 
     toast.success(`Estado actualizado a: ${STATUS_CONFIG[status]?.label}`);
@@ -105,7 +108,26 @@ export default function OrdersAdminPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-border bg-muted/30">{['Pedido','Cliente','Productos','Total','Estado','Pago','Acciones'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase whitespace-nowrap">{h}</th>)}</tr></thead>
+              <tbody>
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/40">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-24 mb-1" /><Skeleton className="h-3 w-16" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-28 mb-1" /><Skeleton className="h-3 w-20" /></td>
+                    <td className="px-4 py-3"><div className="flex -space-x-2">{Array.from({length:2}).map((_,j)=><Skeleton key={j} className="w-7 h-7 rounded-lg border-2 border-background" />)}</div></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-7 w-28 rounded-xl" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                    <td className="px-4 py-3"><Skeleton className="w-7 h-7 rounded-lg" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">

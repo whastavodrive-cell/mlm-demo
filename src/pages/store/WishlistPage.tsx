@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { useAuthStore } from '@/store/authStore';
 import { useCart } from '@/store/cartStore';
 import { useNavigate } from '@/lib/router';
@@ -7,12 +7,14 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Product } from '@/lib/storeTypes';
 import { Heart, Trash2, ShoppingCart, Package, Star, Grid3x3 as Grid3X3, List } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 
 function fmt(n: number, c = 'PEN') { return c === 'USD' ? `$${n.toFixed(2)}` : `S/ ${n.toFixed(2)}`; }
 
 export default function WishlistPage() {
+  const database = useDatabase();
   const { user } = useAuthStore();
   const { addItem } = useCart();
   const navigate = useNavigate();
@@ -23,8 +25,11 @@ export default function WishlistPage() {
   const load = useCallback(async () => {
     if (!user) { navigate('/login'); return; }
     setLoading(true);
-    const { data } = await supabase.from('wishlists').select('product_id, product:products(*, category:product_categories(id,name), variants:product_variants(*))').eq('user_id', user.id);
-    if (data) { setProducts(data.map((w: any) => w.product).filter(Boolean)); }
+    const { data } = await database.select('wishlists', {
+      select: 'product_id, product:products(*, category:product_categories(id,name), variants:product_variants(*))',
+      filter: { user_id: user.id },
+    });
+    if (data) { setProducts(((data as any[]) || []).map((w: any) => w.product).filter(Boolean)); }
     setLoading(false);
   }, [user, navigate]);
 
@@ -32,7 +37,7 @@ export default function WishlistPage() {
 
   const removeFromWishlist = async (productId: string) => {
     if (!user) return;
-    await supabase.from('wishlists').delete().eq('user_id', user.id).eq('product_id', productId);
+    await database.deleteWhere('wishlists', { user_id: user.id, product_id: productId });
     setProducts(prev => prev.filter(p => p.id !== productId));
     toast.success('Eliminado de favoritos');
   };
@@ -43,7 +48,26 @@ export default function WishlistPage() {
     toast.success('Movido al carrito');
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="space-y-1.5"><Skeleton className="h-8 w-36" /><Skeleton className="h-4 w-28" /></div>
+          <Skeleton className="h-9 w-20 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {Array.from({length:10}).map((_,i)=>(
+            <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden">
+              <Skeleton className="aspect-square w-full" />
+              <div className="p-3 space-y-2"><Skeleton className="h-3 w-1/3" /><Skeleton className="h-4 w-full" /><Skeleton className="h-5 w-1/2" /><div className="flex gap-2 mt-2"><Skeleton className="flex-1 h-9 rounded-xl" /><Skeleton className="w-9 h-9 rounded-xl" /></div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
 
   if (!user) return null;
 

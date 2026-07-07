@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { useThemeStore } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { DollarSign, Sun, Moon, Monitor, Save, RefreshCw, GitBranch, Building2, Bell, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type Tab = 'general' | 'mlm' | 'appearance' | 'notifications' | 'email' | 'auth';
 
@@ -37,6 +38,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 export default function SettingsPage() {
   const { theme, setTheme } = useThemeStore();
   const { user } = useAuthStore();
+  const database = useDatabase();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [config, setConfig] = useState<Config>({});
   const [loading, setLoading] = useState(true);
@@ -46,21 +48,20 @@ export default function SettingsPage() {
   const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   useEffect(() => {
-    supabase.from('system_config').select('*').then(({ data }) => {
-      if (data) {
+    database.select<{ key: string; value: string }>('system_config').then(({ data }) => {
+      if (data && Array.isArray(data)) {
         const map: Config = {};
-        data.forEach((row: any) => { map[row.key] = row.value; });
+        data.forEach((row) => { map[row.key] = row.value; });
         setConfig(map);
       }
       setLoading(false);
     });
-  }, []);
+  }, [database]);
 
   const saveConfig = async (keys: string[], category: string = 'general') => {
     setSaving(true);
     for (const key of keys) {
-      await supabase.from('system_config')
-        .upsert({ key, value: config[key] ?? '', category, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      await database.upsert('system_config', { key, value: config[key] ?? '', category, updated_at: new Date().toISOString() }, 'key');
     }
     toast.success('Configuración guardada');
     setSaving(false);
@@ -77,8 +78,16 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-6 max-w-5xl">
+        <div className="space-y-1.5"><Skeleton className="h-8 w-64" /><Skeleton className="h-4 w-56" /></div>
+        <Skeleton className="h-12 w-full rounded-xl" />
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+          <Skeleton className="h-5 w-40" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Array.from({length:4}).map((_,i)=>(<div key={i} className="space-y-1.5"><Skeleton className="h-3 w-32" /><Skeleton className="h-11 w-full rounded-lg" /></div>))}
+          </div>
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
       </div>
     );
   }
@@ -236,6 +245,7 @@ export default function SettingsPage() {
       {/* ── Appearance ── */}
       {activeTab === 'appearance' && (
         <div className="space-y-4">
+          {/* Theme selector */}
           <div className="bg-card border border-border rounded-xl p-6">
             <h3 className="font-semibold text-foreground flex items-center gap-2 mb-5"><Sun className="w-4 h-4 text-primary" /> Tema Visual</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -256,9 +266,20 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
-          <div className="bg-card border border-border rounded-xl p-6">
-            <h3 className="font-semibold text-foreground flex items-center gap-2 mb-5"><Building2 className="w-4 h-4 text-primary" /> Tema del Sistema</h3>
-            <p className="text-sm text-muted-foreground">El tema visual se configura desde el panel de administración. Los cambios afectan a todo el sistema.</p>
+
+          {/* Logo configuration moved to Gestion Admin */}
+          <div className="bg-card border border-border rounded-xl p-6 text-center">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Building2 className="w-6 h-6 text-primary" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground mb-2">Logo del Sistema</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              La configuración del logo se gestiona en el panel de Gestion Admin.
+            </p>
+            <a href="/dashboard/admin" onClick={e => { e.preventDefault(); window.history.pushState({}, '', '/dashboard/admin'); window.dispatchEvent(new Event('locationchange')); }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+              Ir a Gestion Admin
+            </a>
           </div>
         </div>
       )}
@@ -392,7 +413,7 @@ export default function SettingsPage() {
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300">
               <p className="font-medium mb-1">Instrucciones:</p>
               <ol className="list-decimal list-inside space-y-0.5">
-                <li>Ve a Google Cloud Console → APIs & Services → Credentials</li>
+                <li>Ve a Google Cloud Console → APIs &amp; Services → Credentials</li>
                 <li>Crea un OAuth 2.0 Client ID</li>
                 <li>Copia el Client ID y Client Secret aquí</li>
                 <li>Configura la URL de redirección: <code className="bg-blue-500/10 px-1 rounded">https://tu-dominio.supabase.co/auth/v1/callback</code></li>
@@ -414,23 +435,22 @@ export default function SettingsPage() {
 
 function NotificationPreferences() {
   const { user } = useAuthStore();
+  const database = useDatabase();
   const [prefs, setPrefs] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('notification_preferences')
-      .select('*').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => {
-        if (data) setPrefs(data);
-        else setPrefs({
-          user_id: user.id, new_affiliates: true, commissions: true,
-          rank_changes: true, weekly_reports: false, system_alerts: true, promotions: false,
-        });
-        setLoading(false);
+    database.select<any>('notification_preferences', { filter: { user_id: user.id }, single: true }).then(({ data }) => {
+      if (data) setPrefs(data);
+      else setPrefs({
+        user_id: user.id, new_affiliates: true, commissions: true,
+        rank_changes: true, weekly_reports: false, system_alerts: true, promotions: false,
       });
-  }, [user]);
+      setLoading(false);
+    });
+  }, [user, database]);
 
   const toggle = (key: string) => {
     setPrefs((prev: any) => ({ ...prev, [key]: !prev[key] }));
@@ -439,14 +459,26 @@ function NotificationPreferences() {
   const save = async () => {
     if (!user || !prefs) return;
     setSaving(true);
-    const { error } = await supabase.from('notification_preferences')
-      .upsert({ ...prefs, user_id: user.id, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    const { error } = await database.upsert('notification_preferences', { ...prefs, user_id: user.id, updated_at: new Date().toISOString() }, 'user_id');
     if (error) toast.error('Error al guardar');
     else toast.success('Preferencias guardadas');
     setSaving(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-32"><RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) return (
+    <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-3">
+      <Skeleton className="h-5 w-48" />
+      {Array.from({length:6}).map((_,i)=>(
+        <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+          <Skeleton className="w-11 h-6 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
   if (!prefs) return null;
 
   const items = [

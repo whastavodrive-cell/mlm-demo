@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ProductReview } from '@/lib/storeTypes';
@@ -7,6 +7,7 @@ import {
   Star, Check, X, Trash2, MessageSquare,
   Search, Eye, ThumbsUp, RefreshCw, Package
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function StarsDisplay({ value, size = 14 }: { value: number; size?: number }) {
   return (
@@ -35,33 +36,31 @@ export default function ReviewsAdminPage() {
   const [preview, setPreview] = useState<(ProductReview & { product: any; profile: any }) | null>(null);
   const [delId, setDelId] = useState<string | null>(null);
 
+  const database = useDatabase();
+
   const load = useCallback(async () => {
     setLoading(true);
-    const query = supabase
-      .from('product_reviews')
-      .select(`
-        *,
+    const { data } = await database.select<ProductReview & { product: any; profile: any }>('product_reviews', {
+      select: `*,
         profile:profiles(full_name, avatar_url),
-        product:products(id, name, slug, images)
-      `)
-      .order('created_at', { ascending: false });
-
-    const { data } = await query;
+        product:products(id, name, slug, images)`,
+      order: { column: 'created_at', ascending: false },
+    });
     setReviews((data as any) || []);
     setLoading(false);
-  }, []);
+  }, [database]);
 
   useEffect(() => { load(); }, [load]);
 
   const setStatus = async (id: string, status: 'approved' | 'rejected') => {
-    await supabase.from('product_reviews').update({ status }).eq('id', id);
+    await database.update('product_reviews', id, { status });
     toast.success(status === 'approved' ? 'Reseña aprobada' : 'Reseña rechazada');
     setReviews(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     if (preview?.id === id) setPreview(prev => prev ? { ...prev, status } : null);
   };
 
   const deleteReview = async (id: string) => {
-    await supabase.from('product_reviews').delete().eq('id', id);
+    await database.delete('product_reviews', id);
     toast.success('Reseña eliminada');
     setDelId(null);
     setReviews(prev => prev.filter(r => r.id !== id));
@@ -146,8 +145,11 @@ export default function ReviewsAdminPage() {
 
       {/* Reviews table / list */}
       {loading ? (
-        <div className="flex items-center justify-center h-40">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead><tr className="border-b border-border bg-muted/30">{['Producto','Cliente','Calificación','Reseña','Estado','Fecha','Acciones'].map(h=><th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>)}</tr></thead>
+            <tbody>{Array.from({length:7}).map((_,i)=>(<tr key={i} className="border-b border-border/50"><td className="px-4 py-3"><div className="flex items-center gap-2.5"><Skeleton className="w-9 h-9 rounded-lg flex-shrink-0" /><Skeleton className="h-4 w-28" /></div></td><td className="px-4 py-3"><div className="flex items-center gap-2"><Skeleton className="w-7 h-7 rounded-full flex-shrink-0" /><Skeleton className="h-4 w-20" /></div></td><td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td><td className="px-4 py-3"><Skeleton className="h-6 w-20 rounded-full" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td><td className="px-4 py-3"><div className="flex gap-1"><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /></div></td></tr>))}</tbody>
+          </table>
         </div>
       ) : filteredReviews.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-2xl">

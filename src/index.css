@@ -4,81 +4,81 @@
 
 :root {
   --background: 0 0% 100%;
-  --foreground: 220 20% 8%;
+  --foreground: 220 20% 6%;
   --card: 0 0% 100%;
-  --card-foreground: 220 20% 8%;
+  --card-foreground: 220 20% 6%;
   --popover: 0 0% 100%;
-  --popover-foreground: 220 20% 8%;
-  --primary: 213 94% 48%;
+  --popover-foreground: 220 20% 6%;
+  --primary: 38 86% 40%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 215 20% 96%;
-  --secondary-foreground: 220 20% 20%;
-  --muted: 215 20% 96%;
-  --muted-foreground: 215 15% 50%;
-  --accent: 213 94% 95%;
-  --accent-foreground: 213 94% 30%;
+  --secondary: 38 15% 95%;
+  --secondary-foreground: 38 20% 18%;
+  --muted: 38 10% 95%;
+  --muted-foreground: 38 8% 46%;
+  --accent: 43 96% 90%;
+  --accent-foreground: 38 86% 28%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 215 20% 91%;
-  --input: 215 20% 91%;
-  --ring: 213 94% 48%;
+  --border: 38 10% 88%;
+  --input: 38 10% 88%;
+  --ring: 38 86% 40%;
   --radius: 0.625rem;
 
-  /* MLM brand colors */
-  --brand-50: 213 100% 97%;
-  --brand-100: 213 100% 92%;
-  --brand-200: 213 96% 84%;
-  --brand-300: 213 94% 72%;
-  --brand-400: 213 94% 60%;
-  --brand-500: 213 94% 48%;
-  --brand-600: 213 94% 40%;
-  --brand-700: 213 94% 32%;
-  --brand-800: 213 84% 24%;
-  --brand-900: 213 74% 16%;
+  /* Club 360 gold brand */
+  --brand-50: 43 100% 97%;
+  --brand-100: 43 100% 92%;
+  --brand-200: 43 96% 82%;
+  --brand-300: 43 90% 68%;
+  --brand-400: 40 88% 52%;
+  --brand-500: 38 86% 40%;
+  --brand-600: 36 88% 34%;
+  --brand-700: 34 88% 28%;
+  --brand-800: 32 82% 22%;
+  --brand-900: 30 75% 16%;
 
   /* Chart colors */
-  --chart-1: 213 94% 48%;
+  --chart-1: 38 86% 40%;
   --chart-2: 158 64% 42%;
-  --chart-3: 37 91% 55%;
+  --chart-3: 213 94% 48%;
   --chart-4: 0 84% 60%;
   --chart-5: 270 70% 55%;
 }
 
 .dark {
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
-  --card: 222 40% 10%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 40% 10%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 213 94% 55%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 222 35% 14%;
-  --secondary-foreground: 210 40% 88%;
-  --muted: 222 35% 14%;
-  --muted-foreground: 215 20% 55%;
-  --accent: 213 60% 18%;
-  --accent-foreground: 213 94% 70%;
+  --background: 20 10% 5%;
+  --foreground: 40 20% 96%;
+  --card: 20 8% 8%;
+  --card-foreground: 40 20% 96%;
+  --popover: 20 8% 8%;
+  --popover-foreground: 40 20% 96%;
+  --primary: 43 95% 56%;
+  --primary-foreground: 20 10% 5%;
+  --secondary: 20 8% 12%;
+  --secondary-foreground: 40 15% 85%;
+  --muted: 20 8% 12%;
+  --muted-foreground: 40 10% 52%;
+  --accent: 38 40% 16%;
+  --accent-foreground: 43 96% 72%;
   --destructive: 0 62% 40%;
   --destructive-foreground: 0 0% 100%;
-  --border: 222 30% 16%;
-  --input: 222 30% 16%;
-  --ring: 213 94% 55%;
+  --border: 20 8% 15%;
+  --input: 20 8% 15%;
+  --ring: 43 95% 56%;
 
-  --brand-50: 213 60% 8%;
-  --brand-100: 213 60% 12%;
-  --brand-200: 213 70% 20%;
-  --brand-300: 213 80% 30%;
-  --brand-400: 213 90% 42%;
-  --brand-500: 213 94% 55%;
-  --brand-600: 213 94% 65%;
-  --brand-700: 213 94% 75%;
-  --brand-800: 213 94% 85%;
-  --brand-900: 213 94% 95%;
+  --brand-50: 38 30% 8%;
+  --brand-100: 38 35% 12%;
+  --brand-200: 38 50% 20%;
+  --brand-300: 38 70% 32%;
+  --brand-400: 40 80% 44%;
+  --brand-500: 43 95% 56%;
+  --brand-600: 43 96% 66%;
+  --brand-700: 43 96% 76%;
+  --brand-800: 43 96% 86%;
+  --brand-900: 43 96% 94%;
 
-  --chart-1: 213 94% 55%;
+  --chart-1: 43 95% 56%;
   --chart-2: 158 64% 50%;
-  --chart-3: 37 91% 60%;
+  --chart-3: 213 94% 60%;
   --chart-4: 0 84% 65%;
   --chart-5: 270 70% 65%;
 }
@@ -89,6 +89,14 @@
     box-sizing: border-box;
   }
 
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -96,6 +104,19 @@
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
     min-height: 100vh;
+  }
+
+  /* Apply colour transitions globally only while the theme is switching */
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition:
+      background-color 0.18s ease-out,
+      color 0.18s ease-out,
+      border-color 0.18s ease-out,
+      fill 0.18s ease-out,
+      stroke 0.18s ease-out,
+      box-shadow 0.18s ease-out !important;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -222,6 +243,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  /* Account for fixed navbar height when scrolling to anchors */
+  scroll-padding-top: 80px;
 }
 
 body {
@@ -294,3 +317,258 @@ body {
   min-height: 18px;
   opacity: 1;
 }
+
+/* Scroll reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Mouse-follow glow (global) */
+.mouse-glow {
+  position: fixed;
+  width: 900px;
+  height: 900px;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--primary) / 0.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  transition: left 0.05s linear, top 0.05s linear, opacity 0.4s ease;
+  opacity: 0;
+  will-change: left, top;
+}
+.mouse-glow.active {
+  opacity: 1;
+}
+
+/* Hero grid mouse spotlight — reveals glowing squares near cursor */
+.hero-mouse-zone {
+  --hero-mx: 50%;
+  --hero-my: 50%;
+  --hero-active: 0;
+}
+.hero-mouse-zone .hero-spotlight-layer {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    500px circle at var(--hero-mx) var(--hero-my),
+    hsl(var(--primary) / 0.07) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 3;
+  opacity: var(--hero-active);
+  transition: opacity 0.6s ease;
+}
+
+/* Shimmer for badges */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.1) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ── Dub.co Design System ─────────────────────────────────────────────────── */
+
+/* Radial fade — top mask (for hero grids) */
+.mask-fade-top {
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 60%, transparent 100%);
+}
+
+/* Radial fade — center mask (for section grids) */
+.mask-fade-center {
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 40%, transparent 100%);
+}
+
+/* Gradient text animation */
+@keyframes gradient-pan {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.text-gradient-animated {
+  background: linear-gradient(90deg, hsl(38 86% 40%), hsl(43 95% 56%), hsl(38 86% 40%));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-pan 4s linear infinite;
+}
+.dark .text-gradient-animated {
+  background: linear-gradient(90deg, hsl(43 95% 56%), hsl(43 100% 70%), hsl(43 95% 56%));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-pan 4s linear infinite;
+}
+
+/* Marquee */
+@keyframes marquee-left { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+@keyframes marquee-right { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }
+.animate-marquee-left { animation: marquee-left 40s linear infinite; }
+.animate-marquee-right { animation: marquee-right 40s linear infinite; }
+
+/* Brand carousel — pauses on hover, seamless */
+.animate-marquee-brands { animation: marquee-left 30s linear infinite; }
+.animate-marquee-brands-slow { animation: marquee-left 44s linear infinite; }
+.animate-marquee-brands-reverse { animation: marquee-right 28s linear infinite; }
+
+/* Card hover lift — gold glow */
+.card-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.25s ease;
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 12px 40px -12px hsl(var(--primary) / 0.18),
+    0 0 0 1px hsl(var(--primary) / 0.08);
+}
+
+/* Premium gold button shimmer */
+@keyframes btn-shimmer {
+  0% { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(300%) skewX(-12deg); }
+}
+.btn-gold-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-gold-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 20%, rgba(255,255,255,0.12) 50%, transparent 80%);
+  transform: translateX(-100%) skewX(-12deg);
+  animation: btn-shimmer 3s ease infinite;
+}
+
+/* Gradient section divider */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, hsl(var(--border) / 0.5) 40%, hsl(var(--border) / 0.5) 60%, transparent);
+}
+
+/* Subtle gold aura for headings */
+.text-gold-glow {
+  text-shadow: 0 0 80px hsl(var(--primary) / 0.15);
+}
+
+/* Bento grid gap */
+.bento-gap { gap: 1rem; }
+@media (min-width: 768px) { .bento-gap { gap: 1.5rem; } }
+
+/* Section padding */
+.section-py { padding-top: 6rem; padding-bottom: 6rem; }
+@media (min-width: 768px) { .section-py { padding-top: 8rem; padding-bottom: 8rem; } }
+
+/* Radial gradient background utility */
+@layer utilities {
+  .bg-gradient-radial {
+    background-image: radial-gradient(circle, var(--tw-gradient-stops));
+  }
+}
+
+/* ── Theme-aware enhancement ────────────────────────────────────────────────── */
+/* Smooth hardware-accelerated theme transitions */
+html.theme-transitioning .bg-card,
+html.theme-transitioning .bg-background,
+html.theme-transitioning .bg-muted,
+html.theme-transitioning header,
+html.theme-transitioning nav,
+html.theme-transitioning footer {
+  transition:
+    background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Dark mode — warm gold grid, very subtle */
+.dark .bg-dub-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 215, 100, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 215, 100, 0.04) 1px, transparent 1px);
+}
+
+/* Better dub-grid light — very subtle, warm */
+.bg-dub-grid {
+  background-image:
+    linear-gradient(to right, hsl(38 15% 50% / 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(38 15% 50% / 0.1) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Dark sections grid — warm gold lines, subtle */
+.bg-dub-grid-dark {
+  background-image:
+    linear-gradient(to right, rgba(212, 160, 23, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 160, 23, 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Dashboard scrollbar premium gold */
+.dashboard-scroll::-webkit-scrollbar { width: 4px; }
+.dashboard-scroll::-webkit-scrollbar-track { background: transparent; }
+.dashboard-scroll::-webkit-scrollbar-thumb { background: hsl(var(--primary) / 0.3); border-radius: 4px; }
+
+/* ── Mobile optimizations ───────────────────────────────────────────────────── */
+/* Safe area insets for iOS devices */
+.safe-area-inset-top { padding-top: env(safe-area-inset-top); }
+.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Touch-friendly tap highlight */
+@media (max-width: 1023px) {
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: hsl(var(--primary) / 0.15);
+  }
+
+  /* Prevent text selection on interactive elements */
+  button, a, nav, .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Smooth scrolling on mobile */
+  .dashboard-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Larger touch targets (min 44px) */
+  header button, header a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Mobile bottom sheet extra padding */
+  .mobile-safe-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Hardware acceleration for mobile animations */
+@media (max-width: 1023px) {
+  .will-change-transform { will-change: transform; }
+}
+
+/* Reduce motion for users who prefer */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+.dashboard-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.5); }

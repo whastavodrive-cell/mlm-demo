@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
 import { useConfig, formatPrice } from '@/store/configStore';
+import { useRanks } from '@/modules/mlm';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Star, Crown, Target, CircleCheck as CheckCircle, Medal, Gem, Disc, Award as AwardIcon } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   medal: Medal, gem: Gem, disc: Disc, crown: Crown, star: Star, award: AwardIcon,
@@ -12,52 +11,84 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 function RankIcon({ icon, className }: { icon?: string; className?: string }) {
   if (!icon) return <Medal className={className} />;
-  // If it's a single emoji character, render it as text
-  if (icon.length <= 4 && !icon.includes('.')) return <span className={className}>{icon}</span>;
-  // If it matches a Lucide icon name
-  const Comp = iconMap[icon.toLowerCase()];
+  const trimmed = icon.trim();
+  if (trimmed.toLowerCase().startsWith('<svg')) {
+    return (
+      <span
+        className={cn('inline-flex items-center justify-center w-full h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:object-contain', className)}
+        dangerouslySetInnerHTML={{ __html: trimmed }}
+      />
+    );
+  }
+  if (trimmed.startsWith('http') || trimmed.startsWith('/')) return <img src={trimmed} alt="" className={cn('w-full h-full object-contain', className)} />;
+  const Comp = iconMap[trimmed.toLowerCase()];
   if (Comp) return <Comp className={className} />;
-  // If it's an SVG path or URL, render as image
-  if (icon.startsWith('http') || icon.startsWith('/')) return <img src={icon} alt="" className={className} />;
-  // Default: render as text (emoji)
-  return <span className={className}>{icon}</span>;
+  if (trimmed.length <= 4 && !trimmed.includes('.')) return <span className={cn('flex items-center justify-center w-full h-full', className)}>{trimmed}</span>;
+  return <Medal className={className} />;
+}
+
+function RanksSkeleton() {
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="space-y-1.5">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-40" />
+      </div>
+
+      {/* Current rank progress card */}
+      <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-5">
+          <Skeleton className="w-16 h-16 rounded-2xl flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="text-right space-y-1">
+            <Skeleton className="h-3 w-16 ml-auto" />
+            <Skeleton className="h-5 w-20 ml-auto" />
+          </div>
+        </div>
+        <div className="space-y-4 pt-4 border-t border-border">
+          {[0, 1].map(i => (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-1.5">
+                <Skeleton className="h-3 w-36" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-2 w-full rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 6 rank cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="bg-card border-2 border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <Skeleton className="w-12 h-12 rounded-xl" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-5 w-24 mb-1" />
+            <Skeleton className="h-4 w-32 mb-3" />
+            <div className="pt-3 border-t border-border space-y-1.5">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function RanksPage() {
-  const { user } = useAuthStore();
   const { ranks, currency, currencySymbol, exchangeRate } = useConfig();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ affiliates: 0, volume: 0, totalCommissions: 0 });
+  const { loading, stats, currentRank, nextRank, progress } = useRanks();
 
-  useEffect(() => {
-    async function fetchStats() {
-      if (!user) return;
-      setLoading(true);
-      const { data: referrals } = await supabase
-        .from('profiles').select('id').eq('sponsor_id', user.id);
-      const { data: commissions } = await supabase
-        .from('commissions').select('amount').eq('user_id', user.id);
-      const totalCommissions = commissions?.reduce((s, c) => s + Number(c.amount), 0) || 0;
-      setStats({
-        affiliates: referrals?.length || 0,
-        volume: totalCommissions * 10,
-        totalCommissions,
-      });
-      setLoading(false);
-    }
-    fetchStats();
-  }, [user]);
-
-  const currentRankIndex = ranks.findIndex(r => r.slug === user?.rank);
-  const currentRank = ranks[currentRankIndex] || ranks[0];
-  const nextRank = ranks[currentRankIndex + 1];
-
-  const affProgress = nextRank ? Math.min(100, (stats.affiliates / nextRank.min_affiliates) * 100) : 100;
-  const volProgress = nextRank ? Math.min(100, (stats.volume / nextRank.min_volume) * 100) : 100;
-
-  if (loading || ranks.length === 0) {
-    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  }
+  if (loading || ranks.length === 0) return <RanksSkeleton />;
 
   return (
     <div className="space-y-5">
@@ -69,13 +100,13 @@ export default function RanksPage() {
       {/* Current rank + progress */}
       <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-5">
-          <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 border-2', currentRank.bg_color, currentRank.border_color)}>
-            <RankIcon icon={currentRank.icon} className={cn('w-8 h-8', currentRank.color)} />
+          <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 border-2', currentRank?.bg_color, currentRank?.border_color)}>
+            <RankIcon icon={currentRank?.icon} className={cn('w-8 h-8', currentRank?.color)} />
           </div>
           <div className="flex-1">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Tu rango actual</div>
-            <div className={cn('text-xl font-bold', currentRank.color)}>{currentRank.name}</div>
-            <div className="text-sm text-muted-foreground">Bono mensual: <span className="font-bold text-foreground">{formatPrice(currentRank.bonus, currency, currencySymbol, exchangeRate)}</span></div>
+            <div className={cn('text-xl font-bold', currentRank?.color)}>{currentRank?.name}</div>
+            <div className="text-sm text-muted-foreground">Bono mensual: <span className="font-bold text-foreground">{formatPrice(currentRank?.bonus || 0, currency, currencySymbol, exchangeRate)}</span></div>
           </div>
           {nextRank && (
             <div className="text-right">
@@ -95,7 +126,7 @@ export default function RanksPage() {
                 <span className="text-xs text-muted-foreground">{stats.affiliates} / {nextRank.min_affiliates}</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${affProgress}%` }} />
+                <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress.affiliateProgress}%` }} />
               </div>
             </div>
             <div>
@@ -104,7 +135,7 @@ export default function RanksPage() {
                 <span className="text-xs text-muted-foreground">{formatPrice(stats.volume, currency, currencySymbol, exchangeRate)} / {formatPrice(nextRank.min_volume, currency, currencySymbol, exchangeRate)}</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${volProgress}%` }} />
+                <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${progress.volumeProgress}%` }} />
               </div>
             </div>
           </div>
@@ -119,8 +150,8 @@ export default function RanksPage() {
       {/* All ranks */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {ranks.map((rank, i) => {
-          const isCurrent = rank.slug === user?.rank;
-          const isAchieved = i <= currentRankIndex;
+          const isCurrent = rank.id === currentRank?.id;
+          const isAchieved = currentRank && i <= ranks.findIndex(r => r.id === currentRank.id);
           return (
             <div key={rank.id} className={cn(
               'bg-card border-2 rounded-xl p-5 transition-all',

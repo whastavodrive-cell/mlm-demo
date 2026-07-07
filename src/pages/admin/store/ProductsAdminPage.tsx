@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { useNavigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Product, ProductCategory } from '@/lib/storeTypes';
-import { Plus, Search, CreditCard as Edit2, Trash2, Copy, Eye, EyeOff, Package, Loader as Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, Copy, Eye, EyeOff, Package, RefreshCw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function fmt(n: number) { return `S/ ${n.toFixed(2)}`; }
 
@@ -20,16 +21,18 @@ export default function ProductsAdminPage() {
   const [catFilter, setCatFilter] = useState('');
   const [delId, setDelId] = useState<string | null>(null);
 
+  const database = useDatabase();
+
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: prods }, { data: cats }] = await Promise.all([
-      supabase.from('products').select('*, category:product_categories(id,name), variants:product_variants(id,stock,price)').order('created_at', { ascending: false }),
-      supabase.from('product_categories').select('*').order('sort_order'),
+      database.select<Product>('products', { select: '*, category:product_categories(id,name), variants:product_variants(id,stock,price)', order: { column: 'created_at', ascending: false } }),
+      database.select<ProductCategory>('product_categories', { order: { column: 'sort_order' } }),
     ]);
     setProducts((prods as Product[]) || []);
-    setCategories(cats || []);
+    setCategories((cats as ProductCategory[]) || []);
     setLoading(false);
-  }, []);
+  }, [database]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -43,7 +46,7 @@ export default function ProductsAdminPage() {
   const duplicate = async (p: Product) => {
     const newSlug = `${p.slug}-copia-${Date.now()}`;
     const newSku = p.sku ? `${p.sku}-copia` : `SKU-${Date.now().toString(36).toUpperCase()}`;
-    const { data, error } = await supabase.from('products').insert({
+    const { data, error } = await database.insert<any>('products', {
       name: `${p.name} (copia)`,
       slug: newSlug,
       description: p.description,
@@ -65,11 +68,11 @@ export default function ProductsAdminPage() {
       meta_description: p.meta_description,
       featured: false,
       created_by: p.created_by,
-    }).select().single();
-    if (error) { toast.error(error.message); return; }
+    });
+    if (error) { toast.error(error); return; }
     // Duplicate variants
     if (p.variants?.length) {
-      await supabase.from('product_variants').insert(
+      await database.insert('product_variants',
         p.variants.map((v: any) => ({
           name: v.name,
           sku: v.sku ? `${v.sku}-copia` : undefined,
@@ -90,14 +93,14 @@ export default function ProductsAdminPage() {
 
   const toggleStatus = async (p: Product) => {
     const next = p.status === 'active' ? 'draft' : 'active';
-    const { error } = await supabase.from('products').update({ status: next, updated_at: new Date().toISOString() }).eq('id', p.id);
-    if (error) toast.error(error.message);
+    const { error } = await database.update('products', p.id, { status: next, updated_at: new Date().toISOString() });
+    if (error) toast.error(error);
     else { toast.success(`Producto ${next === 'active' ? 'activado' : 'desactivado'}`); load(); }
   };
 
   const remove = async (id: string) => {
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) toast.error(error.message);
+    const { error } = await database.delete('products', id);
+    if (error) toast.error(error);
     else { toast.success('Producto eliminado'); setDelId(null); load(); }
   };
 
@@ -144,7 +147,25 @@ export default function ProductsAdminPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-border bg-muted/30">{['Producto','Categoría','Precio','Stock','Estado','Acciones'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>)}</tr></thead>
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/40">
+                    <td className="px-4 py-3"><div className="flex items-center gap-3"><Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" /><div className="space-y-1"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-20" /></div></div></td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-24" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-4 w-8" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="flex gap-1"><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">

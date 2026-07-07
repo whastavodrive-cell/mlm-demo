@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { useNavigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import type { Product } from '@/lib/storeTypes';
 import { X, Package, Star, ShoppingCart } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useCart } from '@/store/cartStore';
 import Navbar from '@/components/landing/Navbar';
@@ -12,6 +13,7 @@ import Footer from '@/components/landing/Footer';
 function fmt(n: number, c = 'PEN') { return c === 'USD' ? `$${n.toFixed(2)}` : `S/ ${n.toFixed(2)}`; }
 
 export default function ComparePage() {
+  const database = useDatabase();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,13 +23,35 @@ export default function ComparePage() {
     const params = new URLSearchParams(window.location.search);
     const ids = params.get('ids')?.split(',').filter(Boolean) || [];
     if (ids.length < 2) { navigate('/tienda'); return; }
-    supabase.from('products').select(`*, category:product_categories(id,name), variants:product_variants(*)`).in('id', ids).eq('status', 'active')
-      .then(({ data }) => { setProducts((data as Product[]) || []); setLoading(false); });
+    database.select<Product>('products', {
+      select: '*, category:product_categories(id,name), variants:product_variants(*)',
+      filter: [
+        { column: 'id', operator: 'in', value: ids },
+        { column: 'status', operator: 'eq', value: 'active' },
+      ],
+    }).then(({ data }) => { setProducts((data as Product[]) || []); setLoading(false); });
   }, [navigate]);
 
   const allSpecKeys = [...new Set(products.flatMap(p => Object.keys((p as any).specs || {})))];
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-9 w-24 rounded-xl" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead><tr><th className="p-4"><Skeleton className="h-4 w-24" /></th>{Array.from({length:3}).map((_,i)=>(<th key={i} className="p-4"><Skeleton className="h-4 w-28 mx-auto" /></th>))}</tr></thead>
+            <tbody>{Array.from({length:3}).map((_,i)=>(<tr key={i} className="border-b border-border"><td className="p-4"><Skeleton className="h-4 w-28" /></td>{Array.from({length:3}).map((_,j)=>(<td key={j} className="p-4"><Skeleton className="h-5 w-20 mx-auto" /></td>))}</tr>))}</tbody>
+          </table>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
 
   if (products.length < 2) {
     return (

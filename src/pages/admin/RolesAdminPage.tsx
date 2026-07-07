@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { useNavigate } from '@/lib/router';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Plus, Trash2, Save, Shield, Users, X, Lock, ArrowRight, RefreshCw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface CustomRole {
   id: string;
@@ -61,6 +62,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 
 export default function RolesAdminPage() {
   const navigate = useNavigate();
+  const database = useDatabase();
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<CustomRole | null>(null);
@@ -73,16 +75,17 @@ export default function RolesAdminPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [{ data: r }, { data: usage }] = await Promise.all([
-      supabase.from('custom_roles').select('*').order('sort_order'),
-      supabase.from('profiles').select('role'),
+      database.select<CustomRole>('custom_roles', { order: { column: 'sort_order' } }),
+      database.select<{ role: string }>('profiles', { select: 'role' }),
     ]);
-    setRoles(r || []);
+    setRoles((r as CustomRole[]) || []);
     const counts: Record<string, number> = {};
-    for (const u of (usage || [])) {
+    for (const u of ((usage as { role: string }[]) || [])) {
       counts[u.role] = (counts[u.role] || 0) + 1;
     }
     setUsageCounts(counts);
-    if (r && r.length > 0 && !selectedRole) setSelectedRole(r[0]);
+    const rArr = (r as CustomRole[]) || [];
+    if (rArr.length > 0 && !selectedRole) setSelectedRole(rArr[0]);
     setLoading(false);
   }, []);
 
@@ -97,21 +100,22 @@ export default function RolesAdminPage() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9_]/g, '_').replace(/__+/g, '_').replace(/^_|_$/g, '');
     setSaving(true);
-    const { data, error } = await supabase.from('custom_roles').insert({
+    const { data, error } = await database.insert<CustomRole>('custom_roles', {
       name: slug,
       label: newRole.label,
       color: newRole.color,
       description: newRole.description,
       is_system: false,
       sort_order: (roles.length + 1) * 10,
-    }).select().single();
+    });
     if (error) {
-      toast.error(error.message.includes('unique') ? 'Ya existe un rol con ese nombre' : error.message);
+      toast.error(error.includes('unique') ? 'Ya existe un rol con ese nombre' : error);
     } else {
       toast.success('Rol creado correctamente');
-      const updated = [...roles, data as CustomRole];
+      const created = data as CustomRole;
+      const updated = [...roles, created];
       setRoles(updated);
-      setSelectedRole(data as CustomRole);
+      setSelectedRole(created);
       setShowCreate(false);
       setNewRole({ name: '', label: '', color: '#3B82F6', description: '' });
     }
@@ -126,8 +130,8 @@ export default function RolesAdminPage() {
       setDeleteConfirm(null);
       return;
     }
-    const { error } = await supabase.from('custom_roles').delete().eq('id', role.id);
-    if (error) { toast.error(error.message); return; }
+    const { error } = await database.delete('custom_roles', role.id);
+    if (error) { toast.error(error); return; }
     toast.success('Rol eliminado');
     const remaining = roles.filter(r => r.id !== role.id);
     setRoles(remaining);
@@ -138,14 +142,14 @@ export default function RolesAdminPage() {
   const saveRole = async () => {
     if (!selectedRole) return;
     setSaving(true);
-    const { error } = await supabase.from('custom_roles').update({
+    const { error } = await database.update('custom_roles', selectedRole.id, {
       label: selectedRole.label,
       color: selectedRole.color,
       description: selectedRole.description || '',
       updated_at: new Date().toISOString(),
-    }).eq('id', selectedRole.id);
+    });
     if (error) {
-      toast.error('Error al guardar: ' + error.message);
+      toast.error('Error al guardar: ' + error);
     } else {
       toast.success('Rol actualizado correctamente');
       setRoles(prev => prev.map(r => r.id === selectedRole.id ? { ...r, ...selectedRole } : r));
@@ -155,8 +159,17 @@ export default function RolesAdminPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-5 animate-fade-in">
+        <div className="flex items-center justify-between"><div className="space-y-1.5"><Skeleton className="h-8 w-44" /><Skeleton className="h-4 w-48" /></div><Skeleton className="h-10 w-28 rounded-xl" /></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="space-y-2">{Array.from({length:5}).map((_,i)=>(<div key={i} className="bg-card border border-border rounded-xl p-3.5 flex items-center gap-3"><Skeleton className="w-9 h-9 rounded-xl flex-shrink-0" /><div className="flex-1 space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-32" /></div></div>))}</div>
+          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-5">
+            <div className="flex items-center gap-3"><Skeleton className="w-12 h-12 rounded-xl" /><div className="space-y-1.5"><Skeleton className="h-5 w-32" /><Skeleton className="h-3 w-20" /></div></div>
+            {Array.from({length:3}).map((_,i)=>(<div key={i} className="space-y-1.5"><Skeleton className="h-3 w-32" /><Skeleton className="h-11 w-full rounded-xl" /></div>))}
+            <div className="space-y-2"><Skeleton className="h-3 w-20" /><div className="flex flex-wrap gap-2">{Array.from({length:12}).map((_,j)=>(<Skeleton key={j} className="w-7 h-7 rounded-lg" />))}</div></div>
+            <Skeleton className="h-10 w-40 rounded-xl" />
+          </div>
+        </div>
       </div>
     );
   }

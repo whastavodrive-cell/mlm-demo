@@ -1,11 +1,12 @@
 import { useState, useEffect, Fragment } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase, useStorage } from '@/lib/backend';
 import { useAuthStore } from '@/store/authStore';
 import { useSearchParams } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Building2, Shield, Smartphone, Search, Mail, Save, ChevronRight, RefreshCw, MessageCircle, Eye, EyeOff, Lock, CreditCard, Award, Plus, Trash2, CreditCard as Edit2, X, CircleCheck as CheckCircle, DollarSign, Wrench, TriangleAlert as AlertTriangle } from 'lucide-react';
+import { Building2, Shield, Smartphone, Search, Mail, Save, ChevronRight, RefreshCw, MessageCircle, Eye, EyeOff, Lock, CreditCard, Award, Plus, Trash2, CreditCard as Edit2, X, CircleCheck as CheckCircle, DollarSign, Wrench, TriangleAlert as AlertTriangle, Image } from 'lucide-react';
 import { useConfig, type Plan, type Rank } from '@/store/configStore';
+import { LogoWithText } from '@/components/Logo';
 
 // Smart icon renderer: detects SVG markup, URL images, emoji, or plain text
 function RenderIcon({ value, className }: { value: string; className?: string }) {
@@ -103,6 +104,8 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 
 export default function AdminPage() {
   const { user } = useAuthStore();
+  const database = useDatabase();
+  const storage = useStorage();
   const [searchParamsAdmin] = useSearchParams();
   const [activeModule, setActiveModule] = useState(() => searchParamsAdmin.get('module') || 'empresa');
 
@@ -118,20 +121,53 @@ export default function AdminPage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [customRoles, setCustomRoles] = useState<{ name: string; label: string; color: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadingCollapsed, setUploadingCollapsed] = useState(false);
+
+  const handleLogoFile = async (e: React.ChangeEvent<HTMLInputElement>, isCollapsed = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') && file.type !== 'image/svg+xml') {
+      toast.error('Solo se permiten archivos de imagen');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('El archivo no debe superar 2 MB');
+      return;
+    }
+    if (isCollapsed) setUploadingCollapsed(true);
+    else setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `logos/logo-${isCollapsed ? 'collapsed-' : ''}${Date.now()}.${ext}`;
+      const result = await storage.upload('logos', path, file, { contentType: file.type, upsert: true });
+      if (result.success && result.url) {
+        setC(isCollapsed ? 'logo_collapsed_value' : 'logo_value', result.url);
+        toast.success('Logo subido. Presiona Guardar para aplicar.');
+      } else {
+        throw new Error(result.error || 'Upload failed');
+      }
+    } catch {
+      toast.error('Error al subir el logo');
+    } finally {
+      setUploading(false);
+      setUploadingCollapsed(false);
+    }
+  };
 
   const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
 
   useEffect(() => {
     Promise.all([
-      supabase.from('system_config').select('*'),
-      supabase.from('custom_roles').select('name, label, color').order('sort_order'),
+      database.select('system_config'),
+      database.select('custom_roles', { select: 'name, label, color', order: { column: 'sort_order' } }),
     ]).then(([{ data: cfg }, { data: cr }]) => {
       if (cfg) {
         const map: Record<string, string> = {};
-        cfg.forEach((row: any) => { map[row.key] = row.value; });
+        (cfg as any[]).forEach((row: any) => { map[row.key] = row.value; });
         setConfig(map);
       }
-      if (cr && cr.length > 0) setCustomRoles(cr as { name: string; label: string; color: string }[]);
+      if (cr && (cr as any[]).length > 0) setCustomRoles(cr as { name: string; label: string; color: string }[]);
       setLoadingConfig(false);
     });
   }, []);
@@ -145,12 +181,12 @@ export default function AdminPage() {
 
   const savePermissions = async () => {
     setSavingPerms(true);
-    await supabase.from('system_config').upsert({
+    await database.upsert('system_config', {
       key: 'role_permissions',
       value: JSON.stringify(permissions),
       category: 'permissions',
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'key' });
+    }, 'key');
     toast.success('Permisos guardados correctamente');
     setSavingPerms(false);
   };
@@ -158,9 +194,9 @@ export default function AdminPage() {
   const saveConfigKeys = async (keys: string[], category: string = 'general') => {
     setSavingConfig(true);
     for (const key of keys) {
-      await supabase.from('system_config').upsert({
+      await database.upsert('system_config', {
         key, value: config[key] ?? '', category, updated_at: new Date().toISOString(),
-      }, { onConflict: 'key' });
+      }, 'key');
     }
     toast.success('Configuración guardada');
     setSavingConfig(false);
@@ -212,25 +248,149 @@ export default function AdminPage() {
           {/* Empresa */}
           {activeModule === 'empresa' && (
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-5">Información de la Empresa</h2>
-              <div className="space-y-4 max-w-lg">
-                {[
-                  { k: 'company_name', label: 'Nombre de la empresa', placeholder: 'MLM 360' },
-                  { k: 'company_email', label: 'Correo corporativo', placeholder: 'contacto@mlm360.pe' },
-                  { k: 'company_phone', label: 'Teléfono', placeholder: '+51 1 234 5678' },
-                  { k: 'company_address', label: 'Dirección', placeholder: 'Av. Javier Prado, Lima' },
-                  { k: 'company_ruc', label: 'RUC', placeholder: '20123456789' },
-                ].map(f => (
-                  <div key={f.k}>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
-                    <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
-                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+              <h2 className="text-lg font-semibold text-foreground mb-5">Informacion del Sistema</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Company info + sizes */}
+                <div className="space-y-5">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-primary" />
+                      Datos de la empresa
+                    </h3>
+                    {[
+                      { k: 'company_name', label: 'Nombre', placeholder: 'MLM 360' },
+                      { k: 'company_email', label: 'Correo', placeholder: 'contacto@mlm360.pe' },
+                      { k: 'company_phone', label: 'Telefono', placeholder: '+51 1 234 5678' },
+                      { k: 'company_address', label: 'Direccion', placeholder: 'Av. Javier Prado, Lima' },
+                      { k: 'company_ruc', label: 'RUC', placeholder: '20123456789' },
+                    ].map(f => (
+                      <div key={f.k}>
+                        <label className="block text-xs font-medium text-foreground mb-1">{f.label}</label>
+                        <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                          className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <button onClick={() => saveConfigKeys(['company_name', 'company_email', 'company_phone', 'company_address', 'company_ruc'])}
-                  disabled={savingConfig}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar cambios
+
+                  {/* Logo sizes */}
+                  <div className="pt-4 border-t border-border">
+                    <h3 className="text-sm font-bold text-foreground mb-3">Tamano de logos (px)</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { k: 'logo_size_navbar', label: 'Navbar', def: '32' },
+                        { k: 'logo_size_sidebar', label: 'Sidebar', def: '36' },
+                        { k: 'logo_size_collapsed', label: 'Colapsado', def: '40' },
+                        { k: 'logo_size_login', label: 'Login', def: '48' },
+                      ].map(f => (
+                        <div key={f.k}>
+                          <label className="block text-[10px] font-medium text-muted-foreground mb-1">{f.label}</label>
+                          <input type="number" min="16" max="128" value={c(f.k) || f.def} onChange={e => setC(f.k, e.target.value)}
+                            className="w-full px-2 py-1.5 bg-muted border border-border rounded text-foreground text-sm text-center" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Logo uploads + preview */}
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground mb-3">Logo principal</h3>
+                    <label className={cn(
+                      'flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-colors',
+                      'hover:border-primary/50 hover:bg-primary/5',
+                      uploading ? 'opacity-50 pointer-events-none' : '',
+                      'border-border'
+                    )}>
+                      <input type="file" accept="image/*,.svg" className="sr-only" onChange={e => handleLogoFile(e, false)} disabled={uploading} />
+                      {uploading
+                        ? <RefreshCw className="w-5 h-5 text-primary animate-spin" />
+                        : <Image className="w-5 h-5 text-muted-foreground" />}
+                      <span className="text-xs text-muted-foreground">
+                        {uploading ? 'Subiendo...' : 'Haz clic o arrastra tu logo'}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">PNG, JPG, SVG, WebP</span>
+                    </label>
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={c('logo_value')}
+                        onChange={e => setC('logo_value', e.target.value)}
+                        placeholder="O pega URL / codigo SVG aqui"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs font-mono text-foreground focus:border-primary"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground mb-1">Logo colapsado (opcional)</h3>
+                    <p className="text-[10px] text-muted-foreground mb-2">Icono cuadrado para sidebar colapsado</p>
+                    <label className={cn(
+                      'flex flex-col items-center justify-center gap-1.5 w-full h-16 border-2 border-dashed rounded-xl cursor-pointer transition-colors',
+                      'hover:border-primary/50 hover:bg-primary/5',
+                      uploadingCollapsed ? 'opacity-50 pointer-events-none' : '',
+                      'border-border'
+                    )}>
+                      <input type="file" accept="image/*,.svg" className="sr-only" onChange={e => handleLogoFile(e, true)} disabled={uploadingCollapsed} />
+                      {uploadingCollapsed
+                        ? <RefreshCw className="w-4 h-4 text-primary animate-spin" />
+                        : <Image className="w-4 h-4 text-muted-foreground" />}
+                      <span className="text-[11px] text-muted-foreground">
+                        {uploadingCollapsed ? 'Subiendo...' : 'Logo colapsado'}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={c('logo_collapsed_value') || ''}
+                      onChange={e => setC('logo_collapsed_value', e.target.value)}
+                      placeholder="URL logo colapsado (opcional)"
+                      className="w-full mt-2 px-3 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground focus:border-primary"
+                    />
+                  </div>
+
+                  {/* Preview */}
+                  <div className="pt-4 border-t border-border">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Vista previa</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-muted/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-2">Expandido</p>
+                        <div className="flex items-center justify-center gap-2 bg-card border border-border rounded-lg px-2 py-1.5">
+                          <LogoWithText value={c('logo_value')} fallbackText={c('company_name') || 'MLM'} size="w-6 h-6" />
+                          <span className="text-xs font-bold text-foreground truncate max-w-[60px]">{c('company_name') || 'MLM 360'}</span>
+                        </div>
+                      </div>
+                      <div className="bg-muted/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-2">Colapsado</p>
+                        <div className="flex items-center justify-center w-10 h-10 mx-auto bg-muted/50 border border-border rounded-lg overflow-hidden">
+                          {c('logo_collapsed_value') ? (
+                            c('logo_collapsed_value').toLowerCase().startsWith('<svg') ? (
+                              <span className="[&_svg]:w-6 [&_svg]:h-6" dangerouslySetInnerHTML={{ __html: c('logo_collapsed_value') }} />
+                            ) : (
+                              <img src={c('logo_collapsed_value')} alt="" className="w-6 h-6 object-contain" />
+                            )
+                          ) : (
+                            <LogoWithText value={c('logo_value')} fallbackText={(c('company_name') || 'MLM').slice(0, 2)} size="w-6 h-6" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Single save button */}
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                <button
+                  onClick={() => saveConfigKeys([
+                    'company_name', 'company_email', 'company_phone', 'company_address', 'company_ruc',
+                    'logo_value', 'logo_collapsed_value',
+                    'logo_size_navbar', 'logo_size_sidebar', 'logo_size_collapsed', 'logo_size_login'
+                  ])}
+                  disabled={savingConfig || uploading || uploadingCollapsed}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar todo
                 </button>
               </div>
             </div>
@@ -676,6 +836,7 @@ export default function AdminPage() {
 // ── Plans Manager ──
 function PlansManager() {
   const { refresh } = useConfig();
+  const database = useDatabase();
   const [editing, setEditing] = useState<Plan | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -683,8 +844,8 @@ function PlansManager() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    const { data } = await supabase.from('plans').select('*').order('sort_order');
-    if (data) setAllPlans(data.map((p: any) => ({ ...p, features: Array.isArray(p.features) ? p.features : JSON.parse(p.features || '[]') })));
+    const { data } = await database.select<Plan>('plans', { order: { column: 'sort_order' } });
+    if (data) setAllPlans((data as Plan[]).map((p: any) => ({ ...p, features: Array.isArray(p.features) ? p.features : JSON.parse(p.features || '[]') })));
   };
 
   useEffect(() => { fetchAll(); }, []);
@@ -694,9 +855,9 @@ function PlansManager() {
     const { id, created_at, updated_at, ...fields } = plan as any;
     const payload = { ...fields, features: JSON.stringify(fields.features || []), updated_at: new Date().toISOString() };
     if (id) {
-      await supabase.from('plans').update(payload).eq('id', id);
+      await database.update('plans', id, payload);
     } else {
-      await supabase.from('plans').insert(payload);
+      await database.insert('plans', payload);
     }
     setSaving(false);
     setShowForm(false);
@@ -707,7 +868,7 @@ function PlansManager() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('plans').delete().eq('id', id);
+    await database.delete('plans', id);
     setDeleteId(null);
     fetchAll();
     refresh();
@@ -715,13 +876,13 @@ function PlansManager() {
   };
 
   const togglePopular = async (plan: Plan) => {
-    await supabase.from('plans').update({ is_popular: !plan.is_popular, updated_at: new Date().toISOString() }).eq('id', plan.id);
+    await database.update('plans', plan.id, { is_popular: !plan.is_popular, updated_at: new Date().toISOString() });
     fetchAll();
     refresh();
   };
 
   const toggleActive = async (plan: Plan) => {
-    await supabase.from('plans').update({ is_active: !plan.is_active, updated_at: new Date().toISOString() }).eq('id', plan.id);
+    await database.update('plans', plan.id, { is_active: !plan.is_active, updated_at: new Date().toISOString() });
     fetchAll();
     refresh();
   };
@@ -895,6 +1056,7 @@ function PlanForm({ plan, onSave, onCancel, saving }: { plan: Plan | null; onSav
 // ── Ranks Manager ──
 function RanksManager() {
   const { refresh } = useConfig();
+  const database = useDatabase();
   const [editing, setEditing] = useState<Rank | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -902,7 +1064,7 @@ function RanksManager() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchAll = async () => {
-    const { data } = await supabase.from('ranks').select('*').order('sort_order');
+    const { data } = await database.select<Rank>('ranks', { order: { column: 'sort_order' } });
     if (data) setAllRanks(data as Rank[]);
   };
 
@@ -913,9 +1075,9 @@ function RanksManager() {
     const { id, created_at, updated_at, ...fields } = rank as any;
     const payload = { ...fields, updated_at: new Date().toISOString() };
     if (id) {
-      await supabase.from('ranks').update(payload).eq('id', id);
+      await database.update('ranks', id, payload);
     } else {
-      await supabase.from('ranks').insert(payload);
+      await database.insert('ranks', payload);
     }
     setSaving(false);
     setShowForm(false);
@@ -926,7 +1088,7 @@ function RanksManager() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('ranks').delete().eq('id', id);
+    await database.delete('ranks', id);
     setDeleteId(null);
     fetchAll();
     refresh();
@@ -934,7 +1096,7 @@ function RanksManager() {
   };
 
   const toggleActive = async (rank: Rank) => {
-    await supabase.from('ranks').update({ is_active: !rank.is_active, updated_at: new Date().toISOString() }).eq('id', rank.id);
+    await database.update('ranks', rank.id, { is_active: !rank.is_active, updated_at: new Date().toISOString() });
     fetchAll();
     refresh();
   };
@@ -1118,6 +1280,7 @@ function RankForm({ rank, onSave, onCancel, saving }: { rank: Rank | null; onSav
 
 // ── Gateways Manager ──
 function GatewaysManager() {
+  const database = useDatabase();
   const [gateways, setGateways] = useState<any[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -1130,12 +1293,13 @@ function GatewaysManager() {
   const { refresh: refreshConfig } = useConfig();
 
   const fetchAll = async () => {
-    const { data } = await supabase.from('payment_gateways').select('*').order('created_at');
+    const { data } = await database.select('payment_gateways', { order: { column: 'created_at' } });
     if (data) {
-      setGateways(data);
+      const gws = data as any[];
+      setGateways(gws);
       const map: Record<string, Record<string, string>> = {};
       const ratesMap: Record<string, string> = {};
-      data.forEach((g: any) => {
+      gws.forEach((g: any) => {
         map[g.id] = { ...g.credentials };
         ratesMap[g.id] = String(g.commission_rate ?? 0);
       });
@@ -1146,9 +1310,9 @@ function GatewaysManager() {
 
   useEffect(() => {
     fetchAll();
-    supabase.from('system_config').select('key,value').in('key', ['fixer_api_key','exchange_rate_usd']).then(({ data }) => {
+    database.select('system_config', { select: 'key,value', filter: { key: ['fixer_api_key','exchange_rate_usd'] } }).then(({ data }) => {
       if (data) {
-        data.forEach((r: any) => {
+        (data as any[]).forEach((r: any) => {
           if (r.key === 'fixer_api_key') setFixerKey(r.value || '');
           if (r.key === 'exchange_rate_usd') setExchangeRate(r.value || '3.72');
         });
@@ -1158,10 +1322,10 @@ function GatewaysManager() {
 
   const saveCurrencyConfig = async () => {
     setSavingCurrency(true);
-    await supabase.from('system_config').upsert([
+    await database.upsert('system_config', [
       { key: 'fixer_api_key', value: fixerKey, category: 'currency', updated_at: new Date().toISOString() },
       { key: 'exchange_rate_usd', value: exchangeRate, category: 'currency', updated_at: new Date().toISOString() },
-    ], { onConflict: 'key' });
+    ], 'key');
     toast.success('Configuración de moneda guardada');
     setSavingCurrency(false);
   };
@@ -1169,7 +1333,7 @@ function GatewaysManager() {
   const refreshRate = async () => {
     setRefreshingRate(true);
     try {
-      const { data } = await supabase.functions.invoke('exchange-rate');
+      const { data } = await database.invoke<any>('exchange-rate');
       if (data?.rate) {
         setExchangeRate(String(data.rate));
         toast.success(`Tipo de cambio actualizado: S/ ${data.rate} (${data.source})`);
@@ -1185,24 +1349,24 @@ function GatewaysManager() {
   };
 
   const toggleActive = async (gw: any) => {
-    await supabase.from('payment_gateways').update({ is_active: !gw.is_active, updated_at: new Date().toISOString() }).eq('id', gw.id);
+    await database.update('payment_gateways', gw.id, { is_active: !gw.is_active, updated_at: new Date().toISOString() });
     fetchAll();
     toast.success(`${gw.name} ${!gw.is_active ? 'activado' : 'desactivado'}`);
   };
 
   const toggleTestMode = async (gw: any) => {
-    await supabase.from('payment_gateways').update({ test_mode: !gw.test_mode, updated_at: new Date().toISOString() }).eq('id', gw.id);
+    await database.update('payment_gateways', gw.id, { test_mode: !gw.test_mode, updated_at: new Date().toISOString() });
     fetchAll();
     toast.success(`${gw.name}: ${!gw.test_mode ? 'modo prueba' : 'modo producción'}`);
   };
 
   const saveCreds = async (gw: any) => {
     setSaving(gw.id);
-    await supabase.from('payment_gateways').update({
+    await database.update('payment_gateways', gw.id, {
       credentials: creds[gw.id] || {},
       commission_rate: parseFloat(commRates[gw.id] || '0') || 0,
       updated_at: new Date().toISOString(),
-    }).eq('id', gw.id);
+    });
     setSaving(null);
     fetchAll();
     toast.success(`Configuración de ${gw.name} guardada`);

@@ -1,77 +1,100 @@
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useConfig } from '@/store/configStore';
+import { useDatabase } from '@/lib/backend';
 import { cn } from '@/lib/utils';
-import { Link, useLocation } from '@/lib/router';
-import { useState } from 'react';
-import { LayoutDashboard, Users, GitBranch, DollarSign, Award, ChartBar as BarChart3, Settings, ChevronDown, X, ChevronLeft, Boxes, UserCog, CreditCard, User, ShoppingBag, Package, Truck, Tag, ChartBar as BarChart2, ShoppingCart, FolderOpen, MessageSquare, Shield } from 'lucide-react';
+import { Link, useLocation, useNavigate } from '@/lib/router';
+import { useState, useEffect, useRef } from 'react';
+import { LayoutDashboard, Users, GitBranch, DollarSign, Award, ChartBar as BarChart3, Settings, ChevronDown, ChevronRight, UserCog, CreditCard, User, ShoppingBag, Package, Truck, Tag, ChartBar as BarChart2, ShoppingCart, FolderOpen, MessageSquare, Shield, Crown, Star, Medal, LogOut } from 'lucide-react';
+import { type Rank } from '@/store/configStore';
+
+const rankIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  medal: Medal, crown: Crown, star: Star,
+  bronze: Medal, silver: Medal, gold: Medal, platinum: Medal, diamond: Medal,
+};
+
+function RankIcon({ rank, className }: { rank: Rank; className?: string }) {
+  const icon = rank.icon || '';
+  const trimmed = icon.trim();
+  if (trimmed.toLowerCase().startsWith('<svg')) {
+    return (
+      <span
+        className={cn('inline-flex items-center justify-center w-full h-full [&>svg]:w-full [&>svg]:h-full [&>svg]:object-contain', className)}
+        dangerouslySetInnerHTML={{ __html: trimmed }}
+      />
+    );
+  }
+  if (trimmed.startsWith('http') || trimmed.startsWith('/')) return <img src={trimmed} alt="" className={cn('w-full h-full object-contain', className)} />;
+  const Comp = rankIconMap[trimmed.toLowerCase()];
+  if (Comp) return <Comp className={className} />;
+  if (trimmed.length <= 4 && !trimmed.includes('.')) return <span className={cn('flex items-center justify-center w-full h-full', className)}>{trimmed}</span>;
+  return <Star className={className} />;
+}
+import { LogoWithText } from '@/components/Logo';
 
 interface NavItem {
   label: string;
   href?: string;
   icon: React.ComponentType<{ className?: string }>;
   children?: NavItem[];
-  badge?: string;
+  exact?: boolean;
 }
 
 const superAdminNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
-    label: 'Usuarios', icon: Users,
-    children: [
-      { label: 'Lista de Usuarios', href: '/dashboard/usuarios', icon: Users },
-      { label: 'Gestión de Roles', href: '/dashboard/admin/roles', icon: Shield },
-    ]
+    label: 'Usuarios', icon: Users, children: [
+      { label: 'Todos los usuarios', href: '/dashboard/usuarios', icon: Users },
+      { label: 'Roles y permisos', href: '/dashboard/admin/roles', icon: UserCog },
+    ],
   },
-  { label: 'Red MLM', href: '/dashboard/red', icon: GitBranch },
-  { label: 'Comisiones', href: '/dashboard/comisiones', icon: DollarSign },
-  { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
   {
-    label: 'Tienda', icon: ShoppingBag,
-    children: [
-      { label: 'Ver Tienda', href: '/tienda', icon: ShoppingBag },
+    label: 'Red MLM', icon: GitBranch, children: [
+      { label: 'Mi Red', href: '/dashboard/red', icon: GitBranch },
+      { label: 'Comisiones MLM', href: '/dashboard/comisiones', icon: DollarSign },
+      { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
+    ],
+  },
+  {
+    label: 'Tienda', icon: ShoppingBag, children: [
       { label: 'Productos', href: '/dashboard/admin/productos', icon: Package },
       { label: 'Categorías', href: '/dashboard/admin/categorias', icon: FolderOpen },
       { label: 'Pedidos', href: '/dashboard/admin/pedidos', icon: ShoppingCart },
       { label: 'Cupones', href: '/dashboard/admin/cupones', icon: Tag },
       { label: 'Envíos', href: '/dashboard/admin/envios', icon: Truck },
+      { label: 'Comisiones Tienda', href: '/dashboard/admin/comisiones-mlm', icon: DollarSign },
       { label: 'Reseñas', href: '/dashboard/admin/resenas', icon: MessageSquare },
-      { label: 'Comisiones MLM', href: '/dashboard/admin/comisiones-mlm', icon: BarChart2 },
-    ]
+    ],
   },
   { label: 'Mi Plan', href: '/dashboard/mi-plan', icon: CreditCard },
   { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-  { label: 'Gestión Admin', href: '/dashboard/admin', icon: UserCog },
+  { label: 'Gestión Admin', href: '/dashboard/admin', icon: Shield, exact: true },
   { label: 'Configuración', href: '/dashboard/configuracion', icon: Settings },
 ];
 
 const adminNav: NavItem[] = [
-  { label: 'Panel Admin', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Usuarios', href: '/dashboard/usuarios', icon: Users },
   {
-    label: 'Usuarios', icon: Users,
-    children: [
-      { label: 'Lista de Usuarios', href: '/dashboard/usuarios', icon: Users },
-      { label: 'Gestión de Roles', href: '/dashboard/admin/roles', icon: Shield },
-    ]
+    label: 'Red MLM', icon: GitBranch, children: [
+      { label: 'Mi Red', href: '/dashboard/red', icon: GitBranch },
+      { label: 'Comisiones MLM', href: '/dashboard/comisiones', icon: DollarSign },
+      { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
+    ],
   },
-  { label: 'Red MLM', href: '/dashboard/red', icon: GitBranch },
-  { label: 'Comisiones', href: '/dashboard/comisiones', icon: DollarSign },
-  { label: 'Rangos', href: '/dashboard/rangos', icon: Award },
   {
-    label: 'Tienda', icon: ShoppingBag,
-    children: [
-      { label: 'Ver Tienda', href: '/tienda', icon: ShoppingBag },
+    label: 'Tienda', icon: ShoppingBag, children: [
       { label: 'Productos', href: '/dashboard/admin/productos', icon: Package },
       { label: 'Categorías', href: '/dashboard/admin/categorias', icon: FolderOpen },
       { label: 'Pedidos', href: '/dashboard/admin/pedidos', icon: ShoppingCart },
       { label: 'Cupones', href: '/dashboard/admin/cupones', icon: Tag },
       { label: 'Envíos', href: '/dashboard/admin/envios', icon: Truck },
       { label: 'Reseñas', href: '/dashboard/admin/resenas', icon: MessageSquare },
-    ]
+    ],
   },
   { label: 'Mi Plan', href: '/dashboard/mi-plan', icon: CreditCard },
   { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-  { label: 'Gestión Admin', href: '/dashboard/admin', icon: UserCog },
+  { label: 'Gestión Admin', href: '/dashboard/admin', icon: Shield, exact: true },
 ];
 
 const userNav: NavItem[] = [
@@ -82,9 +105,7 @@ const userNav: NavItem[] = [
   { label: 'Mi Rango', href: '/dashboard/rangos', icon: Award },
   { label: 'Mi Plan', href: '/dashboard/mi-plan', icon: CreditCard },
   { label: 'Mis Pedidos', href: '/dashboard/pedidos', icon: ShoppingCart },
-  { label: 'Tienda', href: '/tienda', icon: ShoppingBag },
-  { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart3 },
-  { label: 'Configuración', href: '/dashboard/configuracion', icon: Settings },
+  { label: 'Reportes', href: '/dashboard/reportes', icon: BarChart2 },
 ];
 
 const inspectorNav: NavItem[] = [
@@ -96,117 +117,579 @@ const inspectorNav: NavItem[] = [
 ];
 
 function getNavForRole(role: string): NavItem[] {
-  switch (role) {
-    case 'super_admin': return superAdminNav;
-    case 'admin': return adminNav;
-    case 'inspector': return inspectorNav;
-    default: return userNav;
-  }
+  if (role === 'super_admin') return superAdminNav;
+  if (role === 'admin') return adminNav;
+  if (role === 'inspector') return inspectorNav;
+  return userNav;
 }
 
-function NavItemComponent({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: boolean; depth?: number }) {
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(() => {
-    if (!item.children) return false;
-    return item.children.some(c => c.href && pathname.startsWith(c.href));
-  });
-
-  const isActive = item.href
-    ? (item.href === '/dashboard' ? pathname === '/dashboard' || pathname === '/dashboard/'
-      : pathname.startsWith(item.href))
+function NavItemComponent({
+  item,
+  collapsed,
+  onNavigate,
+  onExpandSidebar,
+  pathname,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  onNavigate?: () => void;
+  onExpandSidebar?: () => void;
+  pathname: string;
+}) {
+  const isActiveLeaf = item.href
+    ? (item.href === '/dashboard' || item.exact)
+      ? pathname === item.href
+      : pathname === item.href || pathname.startsWith(item.href + '/')
     : false;
 
+  const isActiveParent = item.children?.some(c =>
+    c.href && (pathname === c.href || pathname.startsWith(c.href + '/'))
+  );
+
+  const isActive = isActiveLeaf || isActiveParent;
+  const [open, setOpen] = useState(() => Boolean(isActiveParent));
+  const prevCollapsed = useRef(collapsed);
+
+  // Auto-close expanded groups when sidebar collapses - with immediate response
+  useEffect(() => {
+    if (collapsed) {
+      setOpen(false);
+    }
+    prevCollapsed.current = collapsed;
+  }, [collapsed]);
+
+  const effectiveOpen = !collapsed && open;
+
   if (item.children) {
-    const hasActiveChild = item.children.some(c => c.href && pathname.startsWith(c.href));
-    return (
-      <div>
-        <button onClick={() => setOpen(v => !v)}
-          className={cn('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group',
-            hasActiveChild ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            collapsed && 'justify-center px-2')}>
-          <item.icon className={cn('w-4 h-4 flex-shrink-0', hasActiveChild ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
-          {!collapsed && (<>
-            <span className="flex-1 text-left truncate">{item.label}</span>
-            <ChevronDown className={cn('w-3.5 h-3.5 flex-shrink-0 transition-transform', open && 'rotate-180')} />
-          </>)}
+    // Collapsed: clicking a group item expands the sidebar
+    if (collapsed) {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onExpandSidebar?.();
+            setOpen(true);
+          }}
+          className={cn(
+            'w-full flex items-center justify-center p-3 rounded-xl transition-colors text-sm cursor-pointer',
+            isActive
+              ? 'text-primary bg-primary/10'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+          )}
+        >
+          <item.icon className="w-4 h-4 flex-shrink-0" />
         </button>
-        {!collapsed && open && (
-          <div className="mt-0.5 ml-3 border-l-2 border-border pl-3 space-y-0.5">
-            {item.children.map(child => (
-              <NavItemComponent key={child.href || child.label} item={child} collapsed={false} depth={depth + 1} />
-            ))}
-          </div>
-        )}
+      );
+    }
+
+    return (
+      <div className="overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className={cn(
+            'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-sm cursor-pointer',
+            isActive
+              ? 'text-primary bg-primary/10 font-medium'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+          )}
+        >
+          <item.icon className="w-4 h-4 flex-shrink-0" />
+          <span className="flex-1 text-left">{item.label}</span>
+          <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200', !effectiveOpen && '-rotate-90')} />
+        </button>
+
+        <div className={cn(
+          'ml-7 mt-0.5 space-y-0.5 border-l border-border/50 pl-3 transition-all duration-200',
+          effectiveOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 overflow-hidden',
+        )}>
+          {item.children.map(child => {
+            const childActive = child.href
+              ? pathname === child.href || pathname.startsWith(child.href + '/')
+              : false;
+            return (
+              <Link
+                key={child.href}
+                to={child.href!}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+                  childActive
+                    ? 'text-primary font-semibold bg-primary/5'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                )}
+              >
+                <child.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
     );
   }
 
+  if (collapsed) {
+    return (
+      <Link
+        to={item.href!}
+        onClick={onNavigate}
+        className={cn(
+          'flex items-center justify-center p-3 rounded-xl transition-colors text-sm',
+          isActive
+            ? 'text-primary bg-primary/10 font-semibold'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+        )}
+      >
+        <item.icon className="w-4 h-4 flex-shrink-0" />
+      </Link>
+    );
+  }
+
   return (
-    <Link to={item.href!}
-      className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group',
-        isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-        collapsed && 'justify-center px-2',
-        depth > 0 && 'py-2 text-xs')}>
-      <item.icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground')} />
-      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+    <Link
+      to={item.href!}
+      onClick={onNavigate}
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-sm',
+        isActive
+          ? 'text-primary bg-primary/10 font-semibold'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+      )}
+    >
+      <item.icon className="w-4 h-4 flex-shrink-0" />
+      <span className="font-medium">{item.label}</span>
     </Link>
   );
 }
 
+function MobileExpandableSection({
+  item,
+  onNavigate,
+  pathname,
+}: {
+  item: NavItem;
+  onNavigate: () => void;
+  pathname: string;
+}) {
+  const isActiveParent = item.children?.some(c => c.href && pathname.startsWith(c.href));
+  const [expanded, setExpanded] = useState(Boolean(isActiveParent));
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className={cn(
+          'w-full flex items-center gap-2 py-3 px-3 rounded-xl text-sm font-medium transition-colors',
+          isActiveParent ? 'bg-primary/10 text-primary' : 'bg-muted/40 text-foreground hover:bg-muted/60',
+        )}
+      >
+        <item.icon className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1 text-left">{item.label}</span>
+        {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+      {expanded && item.children && (
+        <div className="grid grid-cols-2 gap-1.5 mt-1.5 px-1">
+          {item.children.map(child => {
+            const childActive = child.href ? pathname.startsWith(child.href) : false;
+            return (
+              <Link
+                key={child.href}
+                to={child.href!}
+                onClick={onNavigate}
+                className={cn(
+                  'flex items-center gap-2 py-2.5 px-3 rounded-xl text-sm transition-colors',
+                  childActive
+                    ? 'bg-primary/10 text-primary font-semibold'
+                    : 'bg-muted/40 text-foreground hover:bg-muted/60 active:scale-95',
+                )}
+              >
+                <child.icon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className="truncate">{child.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Sidebar() {
-  const { user } = useAuthStore();
+  const { user, signOut } = useAuthStore();
+  const navigate = useNavigate();
   const { sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed } = useUIStore();
-  const { company } = useConfig();
+  const { company, logoValue, logoSizes, plans, ranks } = useConfig();
+  const [logoCollapsed, setLogoCollapsed] = useState<string>('');
+  const database = useDatabase();
+
+  useEffect(() => {
+    database.select<{ key: string; value: string }>('system_config', {
+      filter: { key: 'logo_collapsed_value' },
+      single: true,
+    }).then(({ data }) => {
+      if (data && !Array.isArray(data) && data.value) {
+        setLogoCollapsed(data.value);
+      }
+    }).catch(() => {});
+  }, [database]);
+
+  const effectiveLogoCollapsed = logoCollapsed || logoValue;
+  const location = useLocation();
+  const pathname = location.pathname;
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const role = (user as any)?.role || 'user';
   const navItems = getNavForRole(role);
   const name = company.company_name || 'MLM360';
 
+  // Role label + color state - fetch from custom_roles table
+  const defaultLabels: Record<string, string> = {
+    super_admin: 'Super Admin', admin: 'Administrador',
+    inspector: 'Inspector', support: 'Soporte', user: 'Usuario',
+  };
+  const [roleLabel, setRoleLabel] = useState<string>(defaultLabels[role] || role.replace(/_/g, ' '));
+  const [roleColor, setRoleColor] = useState<string>('');
+
+  // Determine if roleColor is a hex value or Tailwind class
+  const isHexColor = (c: string) => /^#[0-9A-Fa-f]{3,8}$/.test(c);
+  const roleColorStyle = roleColor && isHexColor(roleColor) ? { color: roleColor } : undefined;
+  const roleColorClass = roleColor && !isHexColor(roleColor) ? roleColor : '';
+
+  useEffect(() => {
+    let mounted = true;
+    database.select<{ name: string; label: string; color: string }>('custom_roles', {
+      filter: { name: role },
+      single: true,
+    }).then(({ data, error }) => {
+      if (mounted && data && !error) {
+        const roleData = Array.isArray(data) ? data[0] : data;
+        if (roleData?.label) setRoleLabel(roleData.label);
+        if (roleData?.color) setRoleColor(roleData.color);
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [role, database]);
+
+  const initials = user
+    ? (user.full_name || user.email || 'U').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+    : 'U';
+
+  const userPlan = user ? plans.find(p => p.slug === user.plan || p.id === user.plan) : null;
+  const userRank = user ? ranks.find(r => r.slug === user.rank || r.name?.toLowerCase() === user.rank?.toLowerCase()) : null;
+
+  const UserAvatar = ({ size = 'sm' }: { size?: 'sm' | 'md' | 'lg' }) => {
+    const dim = size === 'lg' ? 'w-10 h-10 text-sm' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-8 h-8 text-xs';
+    return (
+      <div className={cn('rounded-full overflow-hidden bg-primary/20 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/20', dim)}>
+        {user?.avatar_url ? (
+          <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+        ) : (
+          <span className="font-bold text-primary">{initials}</span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Mobile backdrop — moderate blur */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className={cn(
+            'fixed top-16 left-0 right-0 bottom-0 z-[45] lg:hidden transition-opacity duration-300',
+            sidebarOpen ? 'opacity-100' : 'opacity-0'
+          )}
+          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)' }}
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
+      {/* ─── Desktop Sidebar ─────────────────────────────────────── */}
       <aside className={cn(
         'fixed left-0 top-0 bottom-0 z-50 bg-card border-r border-border flex flex-col transition-all duration-300',
-        'lg:translate-x-0',
-        sidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full w-[260px]',
-        sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'
+        'hidden lg:flex',
+        sidebarCollapsed ? 'w-[72px]' : 'w-[260px]',
       )}>
-        {/* Logo */}
-        <div className={cn('flex items-center gap-3 p-4 border-b border-border flex-shrink-0', sidebarCollapsed && 'lg:justify-center lg:px-2')}>
-          <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
-            <Boxes className="w-5 h-5 text-primary-foreground" />
-          </div>
-          {!sidebarCollapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-foreground truncate">{name}</p>
-              <p className="text-[10px] text-muted-foreground capitalize">{role.replace('_', ' ')}</p>
+        {/* Logo header */}
+        <div className={cn(
+          'flex items-center border-b border-border flex-shrink-0 min-h-[64px]',
+          sidebarCollapsed ? 'justify-center px-3' : 'px-4',
+        )}>
+          {sidebarCollapsed ? (
+            /* Collapsed: square logo container with dynamic size */
+            <div
+              className="rounded-xl overflow-hidden flex items-center justify-center bg-muted/50 border border-border/50 flex-shrink-0 transition-all duration-300"
+              style={{
+                width: `${(logoSizes.collapsed || 40) + 4}px`,
+                height: `${(logoSizes.collapsed || 40) + 4}px`,
+              }}
+            >
+              {effectiveLogoCollapsed ? (
+                effectiveLogoCollapsed.trim().toLowerCase().startsWith('<svg') ? (
+                  <span
+                    className="inline-flex items-center justify-center [&_svg]:w-full [&_svg]:h-full"
+                    style={{ width: `${logoSizes.collapsed || 40}px`, height: `${logoSizes.collapsed || 40}px` }}
+                    dangerouslySetInnerHTML={{ __html: effectiveLogoCollapsed }}
+                  />
+                ) : (
+                  <img
+                    src={effectiveLogoCollapsed}
+                    alt={name}
+                    style={{ width: `${logoSizes.collapsed || 40}px`, height: `${logoSizes.collapsed || 40}px` }}
+                    className="object-contain"
+                  />
+                )
+              ) : (
+                <span className="text-sm font-black text-primary leading-none">{name.slice(0, 2).toUpperCase()}</span>
+              )}
             </div>
+          ) : (
+            <LogoWithText
+              value={logoValue}
+              fallbackText={name}
+              size={`w-[${logoSizes.sidebar || 36}px] h-[${logoSizes.sidebar || 36}px]`}
+              pixelSize={logoSizes.sidebar || 36}
+              textClass="text-sm font-black text-foreground truncate"
+            />
           )}
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden ml-auto text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-          {navItems.map(item => (
-            <NavItemComponent key={item.href || item.label} item={item} collapsed={sidebarCollapsed} />
+        {/* Role badge */}
+        {sidebarCollapsed ? (
+          roleColor ? (
+            <div className="flex justify-center py-1.5 border-b border-border/50 flex-shrink-0">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={roleColor && isHexColor(roleColor) ? { backgroundColor: roleColor } : undefined}
+                title={roleLabel}
+              />
+            </div>
+          ) : null
+        ) : (
+          <div className="px-4 py-2 border-b border-border/50 flex-shrink-0 overflow-hidden">
+            <span
+              className={cn('block text-[10px] font-semibold uppercase tracking-wider truncate', roleColorClass || 'text-muted-foreground')}
+              style={roleColorStyle}
+              title={roleLabel}
+            >
+              {roleLabel}
+            </span>
+          </div>
+        )}
+
+        {/* Nav items */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+          {navItems.map((item, i) => (
+            <NavItemComponent
+              key={i}
+              item={item}
+              collapsed={sidebarCollapsed}
+              pathname={pathname}
+              onExpandSidebar={() => setSidebarCollapsed(false)}
+            />
           ))}
         </nav>
 
-        {/* Collapse toggle — desktop */}
-        <div className="p-3 border-t border-border hidden lg:block flex-shrink-0">
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-all">
-            <ChevronLeft className={cn('w-4 h-4 transition-transform', sidebarCollapsed && 'rotate-180')} />
-            {!sidebarCollapsed && 'Colapsar'}
-          </button>
+        {/* Bottom user card + collapse */}
+        <div className="border-t border-border flex-shrink-0">
+          {sidebarCollapsed ? (
+            <div className="flex flex-col items-center gap-2 py-3 px-2">
+              <UserAvatar size="md" />
+              {(userPlan || userRank) && (
+                <div className="w-full flex items-center justify-center" title={userRank ? userRank.name : userPlan?.name}>
+                  <div className={cn('flex items-center gap-1 px-2 py-0.5 rounded-full', userRank?.bg_color || userPlan?.bg_color || 'bg-primary/10')}>
+                    {userRank ? (
+                      <RankIcon rank={userRank} className={cn('w-3 h-3', userRank.color || 'text-primary')} />
+                    ) : (
+                      <Crown className="w-3 h-3 text-amber-500" />
+                    )}
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-8 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Expandir"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="p-3">
+              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                <UserAvatar size="md" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    {user?.full_name || user?.username || 'Usuario'}
+                  </p>
+                  <p className={cn('text-[10px] truncate', roleColorClass || 'text-muted-foreground')} style={roleColorStyle}>{roleLabel}</p>
+                  {/* Plan + Rank badges */}
+                  <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                    {userPlan && (
+                      <span className={cn('flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none', userPlan.color || 'text-amber-600 dark:text-amber-400', userPlan.bg_color || 'bg-amber-500/10')}>
+                        <Crown className="w-2.5 h-2.5" />
+                        {userPlan.name}
+                      </span>
+                    )}
+                    {userRank && (
+                      <span className={cn('inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none', userRank.color || 'text-primary', userRank.bg_color || 'bg-primary/10')}>
+                        <RankIcon rank={userRank} className="w-2.5 h-2.5" />
+                        {userRank.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                  title="Colapsar"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
+
+      {/* ─── Mobile Sidebar — Bottom Sheet ──────────────────────── */}
+      <div
+        className={cn(
+          'fixed bottom-0 left-0 right-0 z-[55] lg:hidden transition-transform duration-300 ease-out will-change-transform',
+          sidebarOpen ? 'translate-y-0' : 'translate-y-full',
+        )}
+      >
+        <div className="bg-background rounded-t-3xl border-t border-border/50 shadow-2xl max-w-full overflow-hidden">
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-2">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/25" />
+          </div>
+
+          {/* Header — styled like landing nav user card, clickable to profile */}
+          <div className="px-4 pb-3">
+            <button
+              onClick={() => { navigate('/dashboard/perfil'); setSidebarOpen(false); }}
+              className="w-full flex items-center gap-3 p-3.5 bg-gradient-to-r from-primary/8 to-muted/30 border border-border/50 rounded-2xl text-left active:scale-[0.98] transition-transform shadow-sm"
+            >
+              <UserAvatar size="lg" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-foreground truncate">{user?.full_name || name}</p>
+                <p className={cn('text-[10px] font-semibold uppercase tracking-wider mt-0.5', roleColorClass || 'text-muted-foreground')} style={roleColorStyle}>{roleLabel}</p>
+                {(userPlan || userRank) && (
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    {userPlan && (
+                      <span className={cn('flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full', userPlan.color || 'text-amber-600 dark:text-amber-400', userPlan.bg_color || 'bg-amber-500/10')}>
+                        <Crown className="w-2.5 h-2.5" />{userPlan.name}
+                      </span>
+                    )}
+                    {userRank && (
+                      <span className={cn('inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full', userRank.color || 'text-primary', userRank.bg_color || 'bg-primary/10')}>
+                        <RankIcon rank={userRank} className="w-2.5 h-2.5" />{userRank.name}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90 flex-shrink-0" />
+            </button>
+          </div>
+
+          {/* Scrollable nav */}
+          <div className="px-4 pb-2 overflow-y-auto max-h-[55vh] overflow-x-hidden" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+            {/* Grid for simple items */}
+            {(() => {
+              const simple = navItems.filter(item => !item.children);
+              return simple.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {simple.map(item => {
+                    const active = item.href === '/dashboard'
+                      ? pathname === '/dashboard'
+                      : item.href ? pathname.startsWith(item.href) : false;
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href!}
+                        onClick={() => setSidebarOpen(false)}
+                        className={cn(
+                          'flex flex-col items-center gap-2 py-3.5 rounded-2xl transition-all text-center active:scale-95',
+                          active
+                            ? 'bg-primary/12 text-primary shadow-sm'
+                            : 'bg-muted/40 text-foreground hover:bg-muted/60 active:bg-muted',
+                        )}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="text-xs font-semibold leading-tight">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null;
+            })()}
+
+            {/* Expandable sections */}
+            {navItems.filter(item => item.children).map(item => (
+              <MobileExpandableSection
+                key={item.label}
+                item={item}
+                pathname={pathname}
+                onNavigate={() => setSidebarOpen(false)}
+              />
+            ))}
+
+            {/* Quick shortcuts */}
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border/60">
+              <Link
+                to="/tienda"
+                onClick={() => setSidebarOpen(false)}
+                className="flex-1 py-3 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-2xl text-sm font-bold hover:bg-primary/90 active:scale-[0.98] transition-all shadow-sm"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Tienda
+              </Link>
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="w-14 flex items-center justify-center border border-red-400/40 text-red-500 rounded-2xl hover:bg-red-500/10 active:scale-95 transition-all flex-shrink-0"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="h-2" />
+        </div>
+      </div>
+
+      {/* Logout confirmation dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <div className="flex flex-col items-center text-center mb-5">
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-3">
+                <LogOut className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground">¿Cerrar sesión?</h3>
+              <p className="text-sm text-muted-foreground mt-1">Confirma que deseas salir de tu cuenta.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => { await signOut(); setShowLogoutConfirm(false); setSidebarOpen(false); navigate('/login'); }}
+                className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-red-700 transition-colors"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

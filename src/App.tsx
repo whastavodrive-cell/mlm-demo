@@ -14,7 +14,9 @@ import EmpresaPage from '@/pages/landing/EmpresaPage';
 import ContactoPage from '@/pages/landing/ContactoPage';
 import PlanesPage from '@/pages/landing/PlanesPage';
 import BlogPage from '@/pages/landing/BlogPage';
+import BlogDetailPage from '@/pages/landing/BlogDetailPage';
 import PagoPage from '@/pages/landing/PagoPage';
+import PedidosPage from '@/pages/landing/PedidosPage';
 import LoginPage from '@/pages/auth/LoginPage';
 import RegisterPage from '@/pages/auth/RegisterPage';
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
@@ -129,6 +131,7 @@ function AppRoutes() {
         <Route path="/contacto" element={<ContactoPage />} />
         <Route path="/planes" element={<PlanesPage />} />
         <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogDetailPage />} />
         <Route path="/pago" element={<PagoPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/registro" element={<RegisterPage />} />
@@ -139,6 +142,7 @@ function AppRoutes() {
         <Route path="/carrito" element={<CartPage />} />
         <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
         <Route path="/favoritos" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
+        <Route path="/pedidos" element={<ProtectedRoute><PedidosPage /></ProtectedRoute>} />
         <Route path="/dashboard/*" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

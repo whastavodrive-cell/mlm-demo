@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ShippingZone, ShippingMethod } from '@/lib/storeTypes';
 import { Plus, Save, Loader as Loader2, Truck, Globe, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ShippingAdminPage() {
   const [zones, setZones] = useState<ShippingZone[]>([]);
@@ -12,12 +13,14 @@ export default function ShippingAdminPage() {
   const [editZone, setEditZone] = useState<Partial<ShippingZone> | null>(null);
   const [editMethod, setEditMethod] = useState<Partial<ShippingMethod & { zone_id: string }> | null>(null);
 
+  const database = useDatabase();
+
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: zs } = await supabase.from('shipping_zones').select('*, methods:shipping_methods(*)').order('name');
+    const { data: zs } = await database.select<ShippingZone>('shipping_zones', { select: '*, methods:shipping_methods(*)', order: { column: 'name' } });
     setZones((zs as ShippingZone[]) || []);
     setLoading(false);
-  }, []);
+  }, [database]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -26,9 +29,9 @@ export default function ShippingAdminPage() {
     setSaving(true);
     const payload = { name: editZone.name, status: editZone.status || 'active', countries: editZone.countries || [], regions: editZone.regions || [] };
     if (editZone.id) {
-      await supabase.from('shipping_zones').update(payload).eq('id', editZone.id);
+      await database.update('shipping_zones', editZone.id, payload);
     } else {
-      await supabase.from('shipping_zones').insert(payload);
+      await database.insert('shipping_zones', payload);
     }
     toast.success('Zona guardada');
     setEditZone(null);
@@ -48,8 +51,8 @@ export default function ShippingAdminPage() {
       estimated_days_max: editMethod.estimated_days_max || null,
       status: editMethod.status || 'active',
     };
-    if (editMethod.id) await supabase.from('shipping_methods').update(payload).eq('id', editMethod.id);
-    else await supabase.from('shipping_methods').insert(payload);
+    if (editMethod.id) await database.update('shipping_methods', editMethod.id, payload);
+    else await database.insert('shipping_methods', payload);
     toast.success('Método de envío guardado');
     setEditMethod(null);
     setSaving(false);
@@ -57,18 +60,28 @@ export default function ShippingAdminPage() {
   };
 
   const deleteMethod = async (id: string) => {
-    await supabase.from('shipping_methods').delete().eq('id', id);
+    await database.delete('shipping_methods', id);
     toast.success('Método eliminado');
     load();
   };
 
   const deleteZone = async (id: string) => {
-    await supabase.from('shipping_zones').delete().eq('id', id);
+    await database.delete('shipping_zones', id);
     toast.success('Zona eliminada');
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center h-48"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (loading) return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between"><div className="space-y-1.5"><Skeleton className="h-8 w-56" /><Skeleton className="h-4 w-48" /></div><Skeleton className="h-10 w-32 rounded-xl" /></div>
+      {Array.from({length:2}).map((_,i) => (
+        <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border"><Skeleton className="h-4 w-40" /><div className="flex gap-2"><Skeleton className="h-4 w-12" /><Skeleton className="h-4 w-16" /></div></div>
+          <div className="p-5 space-y-2">{Array.from({length:2}).map((_,j)=>(<Skeleton key={j} className="h-14 w-full rounded-xl" />))}</div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-5 pb-10">

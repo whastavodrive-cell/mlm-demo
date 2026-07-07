@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useDatabase, useStorage } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ProductCategory } from '@/lib/storeTypes';
 import { Plus, Save, Loader as Loader2, Trash2, CreditCard as Edit2, X, Image, FolderOpen } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const EMPTY: Partial<ProductCategory> = { name: '', slug: '', description: '', status: 'active', sort_order: 0 };
 
@@ -16,15 +17,15 @@ export default function CategoriesAdminPage() {
   const [delId, setDelId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  const database = useDatabase();
+  const storage = useStorage();
+
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('product_categories')
-      .select('*')
-      .order('sort_order');
-    setCategories(data || []);
+    const { data } = await database.select<ProductCategory>('product_categories', { order: { column: 'sort_order' } });
+    setCategories((data as ProductCategory[]) || []);
     setLoading(false);
-  }, []);
+  }, [database]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -41,10 +42,9 @@ export default function CategoriesAdminPage() {
     setUploading(true);
     const ext = file.name.split('.').pop();
     const path = `categories/${Date.now()}.${ext}`;
-    const { data, error } = await supabase.storage.from('products').upload(path, file, { upsert: true });
-    if (error) { toast.error(error.message); setUploading(false); return; }
-    const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(data.path);
-    setForm(p => ({ ...p, image_url: publicUrl }));
+    const { success, url, error } = await storage.upload('products', path, file, { upsert: true });
+    if (!success || !url) { toast.error(error || 'Error subiendo imagen'); setUploading(false); return; }
+    setForm(p => ({ ...p, image_url: url }));
     setUploading(false);
   };
 
@@ -66,24 +66,24 @@ export default function CategoriesAdminPage() {
       parent_id: form.parent_id || null,
     };
     if (form.id) {
-      const { error } = await supabase.from('product_categories').update(payload).eq('id', form.id);
-      if (error) { toast.error(error.message); setSaving(false); return; }
+      const { error } = await database.update('product_categories', form.id, payload);
+      if (error) { toast.error(error); setSaving(false); return; }
     } else {
-      const { error } = await supabase.from('product_categories').insert(payload);
-      if (error) { toast.error(error.message); setSaving(false); return; }
+      const { error } = await database.insert('product_categories', payload);
+      if (error) { toast.error(error); setSaving(false); return; }
     }
     toast.success(form.id ? 'Categoría actualizada' : 'Categoría creada');
     setForm(EMPTY); setShowForm(false); setSaving(false); load();
   };
 
   const remove = async (id: string) => {
-    const { error } = await supabase.from('product_categories').delete().eq('id', id);
+    const { error } = await database.delete('product_categories', id);
     if (error) { toast.error('No se puede eliminar — tiene productos asociados'); setDelId(null); return; }
     toast.success('Categoría eliminada'); setDelId(null); load();
   };
 
   const updateSortOrder = async (id: string, newOrder: number) => {
-    await supabase.from('product_categories').update({ sort_order: newOrder }).eq('id', id);
+    await database.update('product_categories', id, { sort_order: newOrder });
     load();
   };
 
@@ -128,7 +128,12 @@ export default function CategoriesAdminPage() {
 
       {/* Category list */}
       {loading ? (
-        <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border bg-muted/30">{['Imagen','Nombre','Slug','Orden','Estado','Acciones'].map(h=><th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>)}</tr></thead>
+            <tbody>{Array.from({length:5}).map((_,i)=>(<tr key={i} className="border-b border-border/40"><td className="px-4 py-3"><Skeleton className="w-10 h-10 rounded-xl" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td><td className="px-4 py-3"><Skeleton className="h-7 w-16 rounded-lg" /></td><td className="px-4 py-3"><Skeleton className="h-6 w-16 rounded-full" /></td><td className="px-4 py-3"><div className="flex gap-1"><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /></div></td></tr>))}</tbody>
+          </table>
+        </div>
       ) : (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <table className="w-full text-sm">
