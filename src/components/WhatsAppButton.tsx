@@ -32,8 +32,8 @@ export default function WhatsAppButton() {
       setLoaded(true);
     };
     fetchConfig();
-    const unsubscribe = database.subscribe('system_config', fetchConfig);
-    return unsubscribe;
+    // const unsubscribe = database.subscribe('system_config', fetchConfig);
+    return () => {};
   }, [database]);
 
   // Render nothing until config is fetched — prevents flash on reload
