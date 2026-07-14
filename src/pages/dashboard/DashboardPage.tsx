@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { Link } from '@/lib/router';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const COLORS = ['#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
+const PIE_COLORS = ['hsl(38 85% 42%)', 'hsl(38 85% 55%)', 'hsl(38 85% 65%)', 'hsl(38 85% 72%)', 'hsl(38 85% 80%)'];
 
 function StatCard({ label, value, change, icon: Icon, color }: {
   label: string; value: string; change?: string; icon: any; color: string;
@@ -20,11 +20,11 @@ function StatCard({ label, value, change, icon: Icon, color }: {
   return (
     <div className="bg-card border border-border rounded-xl p-4 sm:p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
-        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', color)}>
+        <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', color)}>
           <Icon className="w-5 h-5" />
         </div>
         {change && (
-          <span className={cn('text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1',
+          <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1',
             isPositive ? 'text-green-600 bg-green-500/10' : 'text-red-500 bg-red-500/10')}>
             {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {change}
@@ -63,7 +63,7 @@ function DashboardSkeleton() {
       </div>
 
       {/* 4 stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-card border border-border rounded-xl p-4 sm:p-5 space-y-3">
             <div className="flex items-start justify-between">
@@ -234,17 +234,17 @@ export default function DashboardPage() {
   const firstName = user?.full_name?.split(' ')[0] || 'Usuario';
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Hola, {firstName}</h1>
+        <h1 className="text-2xl font-bold text-foreground">Hola, {firstName} 👋</h1>
         <p className="text-muted-foreground text-sm mt-1">Aquí está el resumen de tu actividad reciente.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Comisiones totales" value={`S/ ${stats.totalCommissions.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} change="+18%" icon={DollarSign} color="text-green-500 bg-green-500/10" />
-        <StatCard label="Pendientes" value={`S/ ${stats.pendingCommissions.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} icon={TrendingUp} color="text-yellow-500 bg-yellow-500/10" />
-        <StatCard label="Afiliados totales" value={String(stats.totalReferrals)} change={`+${stats.activeReferrals}`} icon={Users} color="text-blue-500 bg-blue-500/10" />
-        <StatCard label="Rango actual" value={userRankObj?.name || user?.rank || 'Bronce'} icon={Award} color={[userRankObj?.color, userRankObj?.bg_color].filter(Boolean).join(' ') || 'text-purple-500 bg-purple-500/10'} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Comisiones totales" value={`S/ ${stats.totalCommissions.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} change="+18%" icon={DollarSign} color="icon-primary" />
+        <StatCard label="Pendientes" value={`S/ ${stats.pendingCommissions.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} icon={TrendingUp} color="icon-muted" />
+        <StatCard label="Afiliados totales" value={String(stats.totalReferrals)} change={`+${stats.activeReferrals}`} icon={Users} color="icon-primary" />
+        <StatCard label="Rango actual" value={userRankObj?.name || user?.rank || 'Bronce'} icon={Award} color="icon-primary" />
       </div>
 
       <ReferralCard />
@@ -256,23 +256,23 @@ export default function DashboardPage() {
               <h3 className="text-sm font-semibold text-foreground">Comisiones mensuales</h3>
               <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
             </div>
-            <Link to="/dashboard/comisiones" className="text-xs text-primary hover:underline flex items-center gap-1">
-              Ver detalle <ChevronRight className="w-3 h-3" />
+            <Link to="/dashboard/comisiones" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              Ver todo <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorComm" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(38 85% 42%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(38 85% 42%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="comisiones" name="Comisiones" stroke="#1d4ed8" strokeWidth={2} fill="url(#colorComm)" />
+              <Area type="monotone" dataKey="comisiones" name="Comisiones" stroke="hsl(38 85% 42%)" strokeWidth={2} fill="url(#colorComm)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -284,7 +284,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={rankDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3}>
-                  {rankDistribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {rankDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
@@ -295,7 +295,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap gap-2 mt-3">
             {rankDistribution.map((r, i) => (
               <div key={r.name} className="flex items-center gap-1.5 text-xs">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                 <span className="text-muted-foreground capitalize">{r.name}</span>
                 <span className="font-semibold text-foreground">{r.value}</span>
               </div>
@@ -340,7 +340,7 @@ export default function DashboardPage() {
               {notifications.map((n) => (
                 <div key={n.id} className={cn('flex items-start gap-3 p-3 rounded-lg', n.read ? 'bg-muted/30' : 'bg-primary/5')}>
                   <div className={cn('w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
-                    n.type === 'success' ? 'bg-green-500' : n.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500')} />
+                    n.type === 'success' ? 'bg-green-500' : n.type === 'warning' ? 'bg-yellow-500' : 'bg-primary')} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-foreground">{n.title}</div>
                     <div className="text-xs text-muted-foreground">{n.message}</div>

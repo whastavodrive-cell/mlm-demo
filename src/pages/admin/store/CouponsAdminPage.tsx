@@ -3,8 +3,9 @@ import { useDatabase } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Coupon, Product, ProductCategory } from '@/lib/storeTypes';
-import { Plus, Trash2, Save, Loader as Loader2, Tag, X, CreditCard as Edit2, Package, Check, Search, ChevronRight, ChevronDown, FolderOpen, Folder } from 'lucide-react';
+import { Plus, Trash2, Save, Loader as Loader2, Tag, X, Pencil, Package, Check, Search, ChevronRight, ChevronDown, FolderOpen, Folder } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 
 function fmt(n: number) { return `S/ ${n.toFixed(2)}`; }
 
@@ -61,7 +62,8 @@ export default function CouponsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<Coupon>>(EMPTY);
   const [showForm, setShowForm] = useState(false);
-  const [delId, setDelId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Coupon | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
@@ -140,9 +142,17 @@ export default function CouponsAdminPage() {
     setForm(EMPTY); setShowForm(false); setSaving(false); load();
   };
 
-  const remove = async (id: string) => {
-    await database.delete('coupons', id);
-    toast.success('Cupon eliminado'); setDelId(null); load();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      await database.delete('coupons', deleteTarget.id);
+      toast.success('Cupon eliminado');
+      load();
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   const toggleProduct = (prodId: string) => {
@@ -180,7 +190,7 @@ export default function CouponsAdminPage() {
     <div className="space-y-5 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-foreground">Cupones de Descuento</h1>
+          <h1 className="text-2xl font-bold text-foreground">Cupones de Descuento</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{coupons.length} cupones</p>
         </div>
         <button onClick={() => openForm()} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:bg-primary/90">
@@ -189,14 +199,14 @@ export default function CouponsAdminPage() {
       </div>
 
       {loading ? (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-border bg-muted/30">{['Código','Tipo/Valor','Mínimo','Aplica a','Usos','Vencimiento','Estado','Acciones'].map(h=><th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>)}</tr></thead>
             <tbody>{Array.from({length:5}).map((_,i)=>(<tr key={i} className="border-b border-border/40"><td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-12" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-14" /></td><td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-8" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td><td className="px-4 py-3"><Skeleton className="h-6 w-16 rounded-full" /></td><td className="px-4 py-3"><div className="flex gap-1"><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /></div></td></tr>))}</tbody>
           </table>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -208,32 +218,25 @@ export default function CouponsAdminPage() {
             <tbody>
               {coupons.map(c => (
                 <tr key={c.id} className="border-b border-border/40 hover:bg-muted/20">
-                  <td className="px-4 py-3 font-black font-mono">{c.code}</td>
+                  <td className="px-4 py-3 font-bold font-mono">{c.code}</td>
                   <td className="px-4 py-3 font-semibold text-primary">{c.type === 'percentage' ? `${c.value}%` : fmt(c.value)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.min_order_amount ? fmt(c.min_order_amount) : '--'}</td>
                   <td className="px-4 py-3 text-xs">
                     {c.applies_to === 'all' && <span className="bg-muted px-2 py-0.5 rounded-full">Todos</span>}
-                    {c.applies_to === 'products' && <span className="bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-full">{(c.product_ids as string[])?.length || 0} productos</span>}
-                    {c.applies_to === 'categories' && <span className="bg-purple-500/10 text-purple-600 px-2 py-0.5 rounded-full">{(c.category_ids as string[])?.length || 0} categorias</span>}
+                    {c.applies_to === 'products' && <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{(c.product_ids as string[])?.length || 0} productos</span>}
+                    {c.applies_to === 'categories' && <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{(c.category_ids as string[])?.length || 0} categorias</span>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{c.used_count}{c.usage_limit ? `/${c.usage_limit}` : ''}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{c.expires_at ? new Date(c.expires_at).toLocaleDateString('es-PE') : 'Sin venc.'}</td>
                   <td className="px-4 py-3">
-                    <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', c.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground')}>
+                    <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', c.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground')}>
                       {c.status === 'active' ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openForm(c)} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary"><Edit2 className="w-3.5 h-3.5" /></button>
-                      {delId === c.id ? (
-                        <div className="flex gap-1">
-                          <button onClick={() => remove(c.id)} className="px-2 py-1 bg-red-500 text-white rounded text-xs font-bold">Si</button>
-                          <button onClick={() => setDelId(null)} className="px-2 py-1 bg-muted rounded text-xs">No</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setDelId(c.id)} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
-                      )}
+                      <button onClick={() => openForm(c)} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setDeleteTarget(c)} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </td>
                 </tr>
@@ -246,7 +249,7 @@ export default function CouponsAdminPage() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh]">
+          <div className="bg-card border border-border rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh]">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-2">
@@ -277,7 +280,7 @@ export default function CouponsAdminPage() {
                 <div>
                   <label className="block text-xs font-bold text-foreground mb-1.5">Estado</label>
                   <div className="flex gap-2">
-                    {[{ v: 'active', label: 'Activo', cl: 'bg-green-500/10 text-green-600 border-green-500/30' },
+                    {[{ v: 'active', label: 'Activo', cl: 'bg-emerald-500/10 text-emerald-600 border-green-500/30' },
                       { v: 'inactive', label: 'Inactivo', cl: 'bg-muted text-muted-foreground border-border' }].map(s => (
                       <button key={s.v} onClick={() => setForm(p => ({ ...p, status: s.v as any }))}
                         className={cn('flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-colors',
@@ -296,7 +299,7 @@ export default function CouponsAdminPage() {
                   <button onClick={() => setForm(p => ({ ...p, type: 'percentage' }))}
                     className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left',
                       form.type === 'percentage' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40')}>
-                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black flex-shrink-0', form.type === 'percentage' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground')}>%</div>
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0', form.type === 'percentage' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground')}>%</div>
                     <div>
                       <p className={cn('text-sm font-bold', form.type === 'percentage' ? 'text-primary' : 'text-foreground')}>Porcentaje</p>
                       <p className="text-xs text-muted-foreground">Ej: 20% de descuento</p>
@@ -305,7 +308,7 @@ export default function CouponsAdminPage() {
                   <button onClick={() => setForm(p => ({ ...p, type: 'fixed' }))}
                     className={cn('flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left',
                       form.type === 'fixed' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40')}>
-                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0', form.type === 'fixed' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground')}>S/</div>
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0', form.type === 'fixed' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground')}>S/</div>
                     <div>
                       <p className={cn('text-sm font-bold', form.type === 'fixed' ? 'text-primary' : 'text-foreground')}>Monto fijo</p>
                       <p className="text-xs text-muted-foreground">Ej: S/ 30 de descuento</p>
@@ -385,7 +388,7 @@ export default function CouponsAdminPage() {
                         {selectedProducts.map(p => (
                           <span key={p.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs font-semibold">
                             {p.name}
-                            <button onClick={() => toggleProduct(p.id)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                            <button onClick={() => toggleProduct(p.id)} className="hover:text-destructive"><X className="w-3 h-3" /></button>
                           </span>
                         ))}
                       </div>
@@ -441,6 +444,15 @@ export default function CouponsAdminPage() {
           </div>
         </div>
       )}
+
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleDelete}
+        title="Eliminar cupón"
+        description={<>Se eliminará permanentemente el cupón <strong>{deleteTarget?.code}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
     </div>
   );
 }

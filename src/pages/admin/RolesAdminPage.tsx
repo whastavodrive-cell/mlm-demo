@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Plus, Trash2, Save, Shield, Users, X, Lock, ArrowRight, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 
 interface CustomRole {
   id: string;
@@ -70,7 +71,8 @@ export default function RolesAdminPage() {
   const [newRole, setNewRole] = useState({ name: '', label: '', color: '#3B82F6', description: '' });
   const [saving, setSaving] = useState(false);
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
-  const [deleteConfirm, setDeleteConfirm] = useState<CustomRole | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CustomRole | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -122,21 +124,27 @@ export default function RolesAdminPage() {
     setSaving(false);
   };
 
-  const deleteRole = async (role: CustomRole) => {
-    if (role.is_system) { toast.error('Los roles del sistema no se pueden eliminar'); setDeleteConfirm(null); return; }
-    const count = usageCounts[role.name] || 0;
+  const deleteRole = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.is_system) { toast.error('Los roles del sistema no se pueden eliminar'); setDeleteTarget(null); return; }
+    const count = usageCounts[deleteTarget.name] || 0;
     if (count > 0) {
       toast.error(`Este rol tiene ${count} usuario(s). Reasígnalos antes de eliminarlo.`);
-      setDeleteConfirm(null);
+      setDeleteTarget(null);
       return;
     }
-    const { error } = await database.delete('custom_roles', role.id);
-    if (error) { toast.error(error); return; }
-    toast.success('Rol eliminado');
-    const remaining = roles.filter(r => r.id !== role.id);
-    setRoles(remaining);
-    setSelectedRole(remaining[0] || null);
-    setDeleteConfirm(null);
+    setDeletingId(deleteTarget.id);
+    try {
+      const { error } = await database.delete('custom_roles', deleteTarget.id);
+      if (error) { toast.error(error); return; }
+      toast.success('Rol eliminado');
+      const remaining = roles.filter(r => r.id !== deleteTarget.id);
+      setRoles(remaining);
+      setSelectedRole(remaining[0] || null);
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   const saveRole = async () => {
@@ -163,7 +171,7 @@ export default function RolesAdminPage() {
         <div className="flex items-center justify-between"><div className="space-y-1.5"><Skeleton className="h-8 w-44" /><Skeleton className="h-4 w-48" /></div><Skeleton className="h-10 w-28 rounded-xl" /></div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="space-y-2">{Array.from({length:5}).map((_,i)=>(<div key={i} className="bg-card border border-border rounded-xl p-3.5 flex items-center gap-3"><Skeleton className="w-9 h-9 rounded-xl flex-shrink-0" /><div className="flex-1 space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-32" /></div></div>))}</div>
-          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-5">
+          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
             <div className="flex items-center gap-3"><Skeleton className="w-12 h-12 rounded-xl" /><div className="space-y-1.5"><Skeleton className="h-5 w-32" /><Skeleton className="h-3 w-20" /></div></div>
             {Array.from({length:3}).map((_,i)=>(<div key={i} className="space-y-1.5"><Skeleton className="h-3 w-32" /><Skeleton className="h-11 w-full rounded-xl" /></div>))}
             <div className="space-y-2"><Skeleton className="h-3 w-20" /><div className="flex flex-wrap gap-2">{Array.from({length:12}).map((_,j)=>(<Skeleton key={j} className="w-7 h-7 rounded-lg" />))}</div></div>
@@ -190,9 +198,9 @@ export default function RolesAdminPage() {
       </div>
 
       {/* Callout: permissions matrix lives in AdminPage */}
-      <div className="flex items-center justify-between gap-4 p-4 bg-blue-500/8 border border-blue-500/20 rounded-xl">
+      <div className="flex items-center justify-between gap-4 p-4 bg-primary/8 border border-primary/20 rounded-xl">
         <div className="flex items-start gap-3">
-          <Shield className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <Shield className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-foreground">Permisos por rol</p>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -202,7 +210,7 @@ export default function RolesAdminPage() {
         </div>
         <button
           onClick={() => navigate('/dashboard/admin?module=permisos')}
-          className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline whitespace-nowrap flex-shrink-0">
+          className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline whitespace-nowrap flex-shrink-0">
           Ir a permisos <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -210,7 +218,7 @@ export default function RolesAdminPage() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl p-6">
+          <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-foreground">Crear nuevo rol</h3>
               <button onClick={() => setShowCreate(false)}
@@ -258,29 +266,15 @@ export default function RolesAdminPage() {
         </div>
       )}
 
-      {/* Delete confirm */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="text-lg font-bold text-foreground text-center mb-2">Eliminar rol</h3>
-            <p className="text-sm text-muted-foreground text-center mb-5">
-              ¿Eliminar <strong>"{deleteConfirm.label}"</strong>? Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)}
-                className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors">
-                Cancelar
-              </button>
-              <button onClick={() => deleteRole(deleteConfirm)}
-                className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-red-700 transition-colors">
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={deleteRole}
+        title="Eliminar rol"
+        description={<>Se eliminará permanentemente <strong>{deleteTarget?.label}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
 
-      {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Left: role list */}
@@ -307,7 +301,7 @@ export default function RolesAdminPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-foreground truncate">{role.label}</span>
                     {role.is_system && (
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide flex-shrink-0">
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide flex-shrink-0">
                         sistema
                       </span>
                     )}
@@ -322,8 +316,8 @@ export default function RolesAdminPage() {
                 {!role.is_system && (
                   <button
                     type="button"
-                    onClick={e => { e.stopPropagation(); setDeleteConfirm(role); }}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0">
+                    onClick={e => { e.stopPropagation(); setDeleteTarget(role); }}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0">
                     <Trash2 style={{ width: 13, height: 13 }} />
                   </button>
                 )}
@@ -340,7 +334,7 @@ export default function RolesAdminPage() {
 
         {/* Right: editor */}
         {selectedRole ? (
-          <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-5 sm:p-6 space-y-5">
+          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
             {/* Role header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
@@ -417,7 +411,7 @@ export default function RolesAdminPage() {
             </div>
           </div>
         ) : (
-          <div className="lg:col-span-2 flex items-center justify-center h-48 border-2 border-dashed border-border rounded-2xl text-muted-foreground">
+          <div className="lg:col-span-2 flex items-center justify-center h-48 border-2 border-dashed border-border rounded-xl text-muted-foreground">
             <div className="text-center">
               <Shield className="w-10 h-10 mx-auto mb-2 opacity-20" />
               <p className="text-sm">Selecciona un rol para editarlo</p>

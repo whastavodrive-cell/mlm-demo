@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type { ShippingZone, ShippingMethod } from '@/lib/storeTypes';
 import { Plus, Save, Loader as Loader2, Truck, Globe, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 
 export default function ShippingAdminPage() {
   const [zones, setZones] = useState<ShippingZone[]>([]);
@@ -12,6 +13,8 @@ export default function ShippingAdminPage() {
   const [saving, setSaving] = useState(false);
   const [editZone, setEditZone] = useState<Partial<ShippingZone> | null>(null);
   const [editMethod, setEditMethod] = useState<Partial<ShippingMethod & { zone_id: string }> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; kind: 'zone' | 'method' } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const database = useDatabase();
 
@@ -59,23 +62,29 @@ export default function ShippingAdminPage() {
     load();
   };
 
-  const deleteMethod = async (id: string) => {
-    await database.delete('shipping_methods', id);
-    toast.success('Método eliminado');
-    load();
-  };
-
-  const deleteZone = async (id: string) => {
-    await database.delete('shipping_zones', id);
-    toast.success('Zona eliminada');
-    load();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      if (deleteTarget.kind === 'zone') {
+        await database.delete('shipping_zones', deleteTarget.id);
+        toast.success('Zona eliminada');
+      } else {
+        await database.delete('shipping_methods', deleteTarget.id);
+        toast.success('Método eliminado');
+      }
+      load();
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   if (loading) return (
     <div className="space-y-5">
       <div className="flex items-center justify-between"><div className="space-y-1.5"><Skeleton className="h-8 w-56" /><Skeleton className="h-4 w-48" /></div><Skeleton className="h-10 w-32 rounded-xl" /></div>
       {Array.from({length:2}).map((_,i) => (
-        <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div key={i} className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border"><Skeleton className="h-4 w-40" /><div className="flex gap-2"><Skeleton className="h-4 w-12" /><Skeleton className="h-4 w-16" /></div></div>
           <div className="p-5 space-y-2">{Array.from({length:2}).map((_,j)=>(<Skeleton key={j} className="h-14 w-full rounded-xl" />))}</div>
         </div>
@@ -87,7 +96,7 @@ export default function ShippingAdminPage() {
     <div className="space-y-5 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-foreground">Zonas y Métodos de Envío</h1>
+          <h1 className="text-2xl font-bold text-foreground">Zonas y Métodos de Envío</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Configura las tarifas de envío por zona geográfica</p>
         </div>
         <button onClick={() => setEditZone({ status: 'active', countries: [], regions: [] })}
@@ -97,19 +106,19 @@ export default function ShippingAdminPage() {
       </div>
 
       {zones.map(zone => (
-        <div key={zone.id} className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div key={zone.id} className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-black text-foreground">{zone.name}</h3>
+              <h3 className="text-sm font-bold text-foreground">{zone.name}</h3>
               <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
-                zone.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground')}>
+                zone.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground')}>
                 {zone.status === 'active' ? 'Activa' : 'Inactiva'}
               </span>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setEditZone(zone)} className="text-xs font-semibold text-primary hover:underline">Editar</button>
-              <button onClick={() => deleteZone(zone.id)} className="text-xs font-semibold text-red-500 hover:underline">Eliminar</button>
+              <button onClick={() => setDeleteTarget({ id: zone.id, name: zone.name, kind: 'zone' })} className="text-xs font-semibold text-destructive hover:underline">Eliminar</button>
             </div>
           </div>
           <div className="p-5">
@@ -134,7 +143,7 @@ export default function ShippingAdminPage() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setEditMethod({ ...m, zone_id: zone.id })} className="text-xs text-primary hover:underline">Editar</button>
-                    <button onClick={() => deleteMethod(m.id)} className="text-xs text-red-500 hover:underline">Eliminar</button>
+                    <button onClick={() => setDeleteTarget({ id: m.id, name: m.name, kind: 'method' })} className="text-xs text-destructive hover:underline">Eliminar</button>
                   </div>
                 </div>
               ))}
@@ -144,7 +153,7 @@ export default function ShippingAdminPage() {
       ))}
 
       {zones.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-2xl">
+        <div className="text-center py-16 text-muted-foreground bg-card border border-border rounded-xl">
           <Globe className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p>No hay zonas de envío configuradas</p>
         </div>
@@ -153,7 +162,7 @@ export default function ShippingAdminPage() {
       {/* Zone modal */}
       {editZone && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-5 space-y-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-foreground">{editZone.id ? 'Editar zona' : 'Nueva zona'}</h3>
               <button onClick={() => setEditZone(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
@@ -183,7 +192,7 @@ export default function ShippingAdminPage() {
       {/* Method modal */}
       {editMethod && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-5 space-y-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-foreground">{editMethod.id ? 'Editar método' : 'Nuevo método'}</h3>
               <button onClick={() => setEditMethod(null)} className="text-muted-foreground"><X className="w-4 h-4" /></button>
@@ -241,6 +250,15 @@ export default function ShippingAdminPage() {
           </div>
         </div>
       )}
+
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleDelete}
+        title={deleteTarget?.kind === 'zone' ? 'Eliminar zona' : 'Eliminar método'}
+        description={<>Se eliminará permanentemente <strong>{deleteTarget?.name}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
     </div>
   );
 }

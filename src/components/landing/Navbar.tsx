@@ -89,7 +89,7 @@ function DesktopUserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50">
           <div className="p-4 bg-muted/30 border-b border-border flex items-center gap-3">
             <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center flex-shrink-0">
               {user.avatar_url ? (
@@ -146,7 +146,7 @@ function DesktopUserMenu() {
       {/* Logout confirmation dialog */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-2xl p-6">
             <div className="flex flex-col items-center text-center mb-5">
               <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-3">
                 <LogOut className="w-6 h-6 text-red-500" />
@@ -189,24 +189,18 @@ export default function Navbar() {
   const isDark = theme === 'dark';
   const isLoggedIn = !!user;
 
-  // Lock scroll without jumping to top
+  // Simple scroll lock - no position:fixed to avoid jelly scroll
   useEffect(() => {
     if (mobileNavOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'contain';
     } else {
-      const top = Math.abs(parseInt(document.body.style.top || '0', 10));
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      if (top) window.scrollTo(0, top);
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
     };
   }, [mobileNavOpen]);
 
@@ -334,16 +328,17 @@ export default function Navbar() {
       <div
         role="dialog"
         aria-modal="true"
+        aria-hidden={!mobileNavOpen}
         className={cn(
-          'fixed top-16 left-0 right-0 bottom-0 z-[55] lg:hidden pointer-events-none',
+          'fixed top-16 left-0 right-0 bottom-0 z-[55] lg:hidden',
+          mobileNavOpen ? 'pointer-events-auto' : 'pointer-events-none',
         )}
-
       >
         {/* Backdrop — moderate blur */}
         <div
           className={cn(
-            'absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 pointer-events-auto',
-            mobileNavOpen ? 'opacity-100' : 'opacity-0',
+            'absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300',
+            mobileNavOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
           )}
           onClick={() => setMobileNavOpen(false)}
         />
@@ -351,10 +346,11 @@ export default function Navbar() {
         {/* Bottom-sheet panel — rises from bottom, not full height */}
         <div
           className={cn(
-            'absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl border-t border-border shadow-2xl pointer-events-auto',
-            'transition-transform duration-300 ease-out',
+            'absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl border-t border-border shadow-2xl',
+            'transition-transform duration-300 ease-out touch-pan-y overscroll-contain',
             mobileNavOpen ? 'translate-y-0' : 'translate-y-full',
           )}
+          onTouchMove={(e) => e.stopPropagation()}
         >
           {/* Handle bar */}
           <div className="flex justify-center pt-3 pb-1">
@@ -366,7 +362,7 @@ export default function Navbar() {
             {isLoggedIn && user && (
               <button
                 onClick={() => { navigate('/dashboard/perfil'); setMobileNavOpen(false); }}
-                className="w-full mb-4 p-4 bg-gradient-to-r from-primary/8 to-muted/30 border border-border/50 rounded-2xl flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+                className="w-full mb-4 p-4 bg-gradient-to-r from-primary/8 to-muted/30 border border-border/50 rounded-xl flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
               >
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/15">
                   {user.avatar_url ? (
@@ -460,7 +456,7 @@ export default function Navbar() {
       {/* Logout confirmation dialog */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-2xl p-6">
             <div className="flex flex-col items-center text-center mb-5">
               <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-3">
                 <LogOut className="w-6 h-6 text-red-500" />

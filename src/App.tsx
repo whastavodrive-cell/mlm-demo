@@ -15,6 +15,8 @@ import ContactoPage from '@/pages/landing/ContactoPage';
 import PlanesPage from '@/pages/landing/PlanesPage';
 import BlogPage from '@/pages/landing/BlogPage';
 import BlogDetailPage from '@/pages/landing/BlogDetailPage';
+import LibroReclamacionesPage from '@/pages/landing/LibroReclamacionesPage';
+import LegalPage from '@/pages/landing/LegalPage';
 import PagoPage from '@/pages/landing/PagoPage';
 import PedidosPage from '@/pages/landing/PedidosPage';
 import LoginPage from '@/pages/auth/LoginPage';
@@ -32,7 +34,7 @@ import WishlistPage from '@/pages/store/WishlistPage';
 import { CartProvider } from '@/store/cartStore';
 import { Boxes, Wrench as WrenchIcon } from 'lucide-react';
 
-const LANDING_PATHS = ['/', '/nosotros', '/precios', '/empresa', '/contacto', '/planes', '/blog', '/pago', '/login', '/registro', '/reset-password', '/tienda', '/carrito', '/checkout', '/favoritos', '/tienda/comparar'];
+const LANDING_PATHS = ['/', '/nosotros', '/precios', '/empresa', '/contacto', '/planes', '/blog', '/pago', '/login', '/registro', '/reset-password', '/tienda', '/carrito', '/checkout', '/favoritos', '/tienda/comparar', '/libro-reclamaciones', '/legal'];
 const ADMIN_BYPASS_ROLES = ['super_admin', 'admin'];
 
 function MaintenancePage() {
@@ -62,19 +64,24 @@ function MaintenancePage() {
   );
 }
 
+function AppSkeleton() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex flex-col items-center gap-5">
+        <div className="w-12 h-12 rounded-2xl bg-muted animate-pulse" />
+        <div className="space-y-2 text-center">
+          <div className="h-2.5 w-32 bg-muted rounded-full animate-pulse mx-auto" />
+          <div className="h-2 w-20 bg-muted rounded-full animate-pulse mx-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { session, loading } = useAuthStore();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <AppSkeleton />;
   if (!session) return <Navigate to="/login" />;
   return <>{children}</>;
 }
@@ -114,13 +121,7 @@ function AppRoutes() {
     return () => clearTimeout(t);
   }, []);
 
-  if (loading && !forcedReady) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading && !forcedReady) return <AppSkeleton />;
   return (
     <MaintenanceGate>
       <Routes>
@@ -132,6 +133,8 @@ function AppRoutes() {
         <Route path="/planes" element={<PlanesPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:slug" element={<BlogDetailPage />} />
+        <Route path="/libro-reclamaciones" element={<LibroReclamacionesPage />} />
+        <Route path="/legal/:slug" element={<LegalPage />} />
         <Route path="/pago" element={<PagoPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/registro" element={<RegisterPage />} />

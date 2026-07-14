@@ -28,6 +28,12 @@ import CouponsAdminPage from '@/pages/admin/store/CouponsAdminPage';
 import CategoriesAdminPage from '@/pages/admin/store/CategoriesAdminPage';
 import MlmCommissionsAdminPage from '@/pages/admin/store/MlmCommissionsAdminPage';
 import ReviewsAdminPage from '@/pages/admin/store/ReviewsAdminPage';
+import TestimonialsManagerPage from '@/pages/admin/TestimonialsManagerPage';
+import SocialLinksAdminPage from '@/pages/admin/SocialLinksAdminPage';
+import FaqAdminPage from '@/pages/admin/FaqAdminPage';
+import ComplaintsAdminPage from '@/pages/admin/ComplaintsAdminPage';
+import LegalPagesAdminPage from '@/pages/admin/LegalPagesAdminPage';
+import MyComplaintsPage from '@/pages/dashboard/MyComplaintsPage';
 
 function DashboardContent() {
   const { pathname } = useLocation();
@@ -57,6 +63,12 @@ function DashboardContent() {
   if (pathname === '/dashboard/admin/categorias') return <CategoriesAdminPage />;
   if (pathname === '/dashboard/admin/comisiones-mlm') return <MlmCommissionsAdminPage />;
   if (pathname === '/dashboard/admin/resenas') return <ReviewsAdminPage />;
+  if (pathname === '/dashboard/admin/testimonios' || pathname === '/dashboard/admin/ciudades') return <TestimonialsManagerPage />;
+  if (pathname === '/dashboard/admin/redes-sociales') return <SocialLinksAdminPage />;
+  if (pathname === '/dashboard/admin/faq') return <FaqAdminPage />;
+  if (pathname === '/dashboard/admin/libro-reclamaciones') return <ComplaintsAdminPage />;
+  if (pathname === '/dashboard/admin/paginas') return <LegalPagesAdminPage />;
+  if (pathname === '/dashboard/mis-reclamos') return <MyComplaintsPage />;
 
   return <DashboardPage />;
 }
@@ -112,7 +124,9 @@ export default function DashboardLayout() {
         sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-[260px]')}>
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 bg-background dashboard-scroll">
-          <DashboardContent />
+          <div className="max-w-[1400px] mx-auto w-full">
+            <DashboardContent />
+          </div>
         </main>
       </div>
     </div>

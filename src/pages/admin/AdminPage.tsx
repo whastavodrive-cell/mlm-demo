@@ -4,9 +4,10 @@ import { useAuthStore } from '@/store/authStore';
 import { useSearchParams } from '@/lib/router';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Building2, Shield, Smartphone, Search, Mail, Save, ChevronRight, RefreshCw, MessageCircle, Eye, EyeOff, Lock, CreditCard, Award, Plus, Trash2, CreditCard as Edit2, X, CircleCheck as CheckCircle, DollarSign, Wrench, TriangleAlert as AlertTriangle, Image } from 'lucide-react';
+import { Building2, Shield, Smartphone, Search, Mail, Save, ChevronRight, RefreshCw, MessageCircle, Eye, EyeOff, Lock, CreditCard, Award, Plus, Trash2, Pencil, X, CircleCheck as CheckCircle, DollarSign, Wrench, TriangleAlert as AlertTriangle, Image } from 'lucide-react';
 import { useConfig, type Plan, type Rank } from '@/store/configStore';
 import { LogoWithText } from '@/components/Logo';
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 
 // Smart icon renderer: detects SVG markup, URL images, emoji, or plain text
 function RenderIcon({ value, className }: { value: string; className?: string }) {
@@ -117,7 +118,7 @@ export default function AdminPage() {
   const [permissions, setPermissions] = useState(defaultPermissions);
   const [savingPerms, setSavingPerms] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>({});
-  const [, setLoadingConfig] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [customRoles, setCustomRoles] = useState<{ name: string; label: string; color: string }[]>([]);
@@ -166,6 +167,13 @@ export default function AdminPage() {
         const map: Record<string, string> = {};
         (cfg as any[]).forEach((row: any) => { map[row.key] = row.value; });
         setConfig(map);
+        const savedPerms = map['role_permissions'];
+        if (savedPerms) {
+          try {
+            const parsed = JSON.parse(savedPerms);
+            setPermissions(prev => ({ ...prev, ...parsed }));
+          } catch { /* ignore malformed JSON */ }
+        }
       }
       if (cr && (cr as any[]).length > 0) setCustomRoles(cr as { name: string; label: string; color: string }[]);
       setLoadingConfig(false);
@@ -216,6 +224,40 @@ export default function AdminPage() {
     );
   }
 
+  if (loadingConfig) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="space-y-1.5">
+          <div className="h-7 w-64 bg-muted rounded-lg animate-pulse" />
+          <div className="h-4 w-80 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="lg:w-56 flex-shrink-0">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b border-border/50 last:border-0">
+                  <div className="w-4 h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-3 flex-1 bg-muted rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 bg-card border border-border rounded-xl p-6 space-y-4">
+            <div className="h-5 w-48 bg-muted rounded animate-pulse" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+                  <div className="h-10 w-full bg-muted rounded-lg animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -223,21 +265,39 @@ export default function AdminPage() {
         <p className="text-muted-foreground text-sm mt-1">Configura todos los aspectos del sistema MLM 360.</p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Module list */}
+      <div className="flex flex-col lg:flex-row lg:items-start gap-4 lg:gap-6">
+        {/* Module selector — mobile: scrollable pill strip; desktop: vertical list */}
         <div className="lg:w-56 flex-shrink-0">
-          <div className="bg-card border border-border rounded-xl overflow-hidden flex lg:flex-col flex-row overflow-x-auto">
+          {/* Mobile pill strip */}
+          <div className="lg:hidden flex overflow-x-auto gap-1 bg-muted/50 rounded-xl p-1.5 scrollbar-hide">
             {modules.map(mod => (
               <button key={mod.id} onClick={() => setActiveModule(mod.id)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-4 py-3.5 text-left border-b border-border/50 last:border-0 transition-colors flex-shrink-0 lg:flex-shrink',
-                  activeModule === mod.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                  'flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0',
+                  activeModule === mod.id
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}>
+                <mod.icon className="w-4 h-4 flex-shrink-0" />
+                {mod.label}
+              </button>
+            ))}
+          </div>
+          {/* Desktop list */}
+          <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+            {modules.map(mod => (
+              <button key={mod.id} onClick={() => setActiveModule(mod.id)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border/50 last:border-0 transition-colors',
+                  activeModule === mod.id
+                    ? 'bg-primary/10 text-primary'
+                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                 )}>
                 <mod.icon className="w-4 h-4 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium whitespace-nowrap">{mod.label}</div>
+                  <div className="text-sm font-medium">{mod.label}</div>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 hidden lg:block" />
+                <ChevronRight className="w-3 h-3 flex-shrink-0 text-muted-foreground/50" />
               </button>
             ))}
           </div>
@@ -263,6 +323,7 @@ export default function AdminPage() {
                       { k: 'company_phone', label: 'Telefono', placeholder: '+51 1 234 5678' },
                       { k: 'company_address', label: 'Direccion', placeholder: 'Av. Javier Prado, Lima' },
                       { k: 'company_ruc', label: 'RUC', placeholder: '20123456789' },
+                      { k: 'company_tagline', label: 'Eslogan (footer)', placeholder: 'Plataforma empresarial para gestión de redes y comercio. Impulsa tu negocio al siguiente nivel.' },
                     ].map(f => (
                       <div key={f.k}>
                         <label className="block text-xs font-medium text-foreground mb-1">{f.label}</label>
@@ -382,7 +443,7 @@ export default function AdminPage() {
               <div className="mt-6 pt-4 border-t border-border flex justify-end">
                 <button
                   onClick={() => saveConfigKeys([
-                    'company_name', 'company_email', 'company_phone', 'company_address', 'company_ruc',
+                    'company_name', 'company_email', 'company_phone', 'company_address', 'company_ruc', 'company_tagline',
                     'logo_value', 'logo_collapsed_value',
                     'logo_size_navbar', 'logo_size_sidebar', 'logo_size_collapsed', 'logo_size_login'
                   ])}
@@ -434,7 +495,7 @@ export default function AdminPage() {
                           <Fragment key={group}>
                             <tr className="border-b border-border/30 bg-muted/30">
                               <td colSpan={(customRoles.length > 0 ? customRoles : permissionRoles).length + 1} className="px-4 sm:px-5 py-2">
-                                <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">{group}</span>
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{group}</span>
                               </td>
                             </tr>
                             {groupPerms.map(perm => (
@@ -512,103 +573,115 @@ export default function AdminPage() {
 
           {/* Auth Social */}
           {activeModule === 'auth' && (
-            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
-              <div>
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+              <div className="mb-5">
                 <h2 className="text-lg font-semibold text-foreground flex items-center gap-2"><Lock className="w-4 h-4 text-primary" /> Google OAuth</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Configura el login con Google. Los usuarios podrán iniciar sesión con su cuenta de Google.</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div>
-                  <div className="text-sm font-medium text-foreground">Habilitar login con Google</div>
-                  <div className="text-xs text-muted-foreground">Permite a los usuarios registrarse e iniciar sesión con Google</div>
-                </div>
-                <ToggleSwitch checked={c('google_oauth_enabled') === 'true'} onChange={v => setC('google_oauth_enabled', String(v))} />
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Google Client ID</label>
-                  <div className="relative">
-                    <input type={showSecrets['google_client_id'] ? 'text' : 'password'} value={c('google_client_id')}
-                      onChange={e => setC('google_client_id', e.target.value)} placeholder="xxxxxxxxxx.apps.googleusercontent.com"
-                      className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
-                    <button type="button" onClick={() => setShowSecrets(p => ({ ...p, google_client_id: !p.google_client_id }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showSecrets['google_client_id'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">Habilitar login con Google</div>
+                      <div className="text-xs text-muted-foreground">Permite a los usuarios registrarse e iniciar sesión con Google</div>
+                    </div>
+                    <ToggleSwitch checked={c('google_oauth_enabled') === 'true'} onChange={v => setC('google_oauth_enabled', String(v))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Google Client ID</label>
+                    <div className="relative">
+                      <input type={showSecrets['google_client_id'] ? 'text' : 'password'} value={c('google_client_id')}
+                        onChange={e => setC('google_client_id', e.target.value)} placeholder="xxxxxxxxxx.apps.googleusercontent.com"
+                        className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
+                      <button type="button" onClick={() => setShowSecrets(p => ({ ...p, google_client_id: !p.google_client_id }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showSecrets['google_client_id'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Google Client Secret</label>
+                    <div className="relative">
+                      <input type={showSecrets['google_client_secret'] ? 'text' : 'password'} value={c('google_client_secret')}
+                        onChange={e => setC('google_client_secret', e.target.value)} placeholder="GOCSPX-xxxxxxxxxxxxx"
+                        className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
+                      <button type="button" onClick={() => setShowSecrets(p => ({ ...p, google_client_secret: !p.google_client_secret }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showSecrets['google_client_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Google Client Secret</label>
-                  <div className="relative">
-                    <input type={showSecrets['google_client_secret'] ? 'text' : 'password'} value={c('google_client_secret')}
-                      onChange={e => setC('google_client_secret', e.target.value)} placeholder="GOCSPX-xxxxxxxxxxxxx"
-                      className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
-                    <button type="button" onClick={() => setShowSecrets(p => ({ ...p, google_client_secret: !p.google_client_secret }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showSecrets['google_client_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                <div className="space-y-4">
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-xs text-primary">
+                    <p className="font-medium mb-1">Instrucciones:</p>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      <li>Ve a Google Cloud Console → APIs & Services → Credentials</li>
+                      <li>Crea un OAuth 2.0 Client ID</li>
+                      <li>Copia el Client ID y Client Secret aquí</li>
+                      <li>Configura la URL de redirección: <code className="bg-primary/10 px-1 rounded">https://tu-dominio.supabase.co/auth/v1/callback</code></li>
+                    </ol>
                   </div>
                 </div>
               </div>
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300">
-                <p className="font-medium mb-1">Instrucciones:</p>
-                <ol className="list-decimal list-inside space-y-0.5">
-                  <li>Ve a Google Cloud Console → APIs & Services → Credentials</li>
-                  <li>Crea un OAuth 2.0 Client ID</li>
-                  <li>Copia el Client ID y Client Secret aquí</li>
-                  <li>Configura la URL de redirección: <code className="bg-blue-500/10 px-1 rounded">https://tu-dominio.supabase.co/auth/v1/callback</code></li>
-                </ol>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                <button onClick={() => saveConfigKeys(['google_oauth_enabled', 'google_client_id', 'google_client_secret'], 'auth')}
+                  disabled={savingConfig}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+                </button>
               </div>
-              <button onClick={() => saveConfigKeys(['google_oauth_enabled', 'google_client_id', 'google_client_secret'], 'auth')}
-                disabled={savingConfig}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
-              </button>
             </div>
           )}
 
           {/* WhatsApp */}
           {activeModule === 'whatsapp' && (
-            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
-              <div>
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+              <div className="mb-5">
                 <h2 className="text-lg font-semibold text-foreground flex items-center gap-2"><MessageCircle className="w-4 h-4 text-green-500" /> Configuración de WhatsApp</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Configura el botón flotante de WhatsApp que aparece en el sitio.</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div>
-                  <div className="text-sm font-medium text-foreground">Botón de WhatsApp visible</div>
-                  <div className="text-xs text-muted-foreground">Muestra u oculta el botón flotante en el sitio público</div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">Botón de WhatsApp visible</div>
+                      <div className="text-xs text-muted-foreground">Muestra u oculta el botón flotante en el sitio público</div>
+                    </div>
+                    <ToggleSwitch checked={c('whatsapp_enabled') === 'true'} onChange={v => setC('whatsapp_enabled', String(v))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Número de WhatsApp</label>
+                    <input value={c('whatsapp_number')} onChange={e => setC('whatsapp_number', e.target.value)}
+                      placeholder="51987654321"
+                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
+                    <p className="text-xs text-muted-foreground mt-1">Incluye el código de país sin "+". Ej: 51 para Perú, 34 para España.</p>
+                  </div>
                 </div>
-                <ToggleSwitch checked={c('whatsapp_enabled') === 'true'} onChange={v => setC('whatsapp_enabled', String(v))} />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Mensaje predeterminado</label>
+                    <textarea value={c('whatsapp_message')} onChange={e => setC('whatsapp_message', e.target.value)}
+                      placeholder="Hola, me gustaría más información sobre MLM 360" rows={3}
+                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Posición del botón</label>
+                    <select value={c('whatsapp_position')} onChange={e => setC('whatsapp_position', e.target.value)}
+                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary">
+                      <option value="bottom-right">Abajo a la derecha</option>
+                      <option value="bottom-left">Abajo a la izquierda</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Número de WhatsApp</label>
-                  <input value={c('whatsapp_number')} onChange={e => setC('whatsapp_number', e.target.value)}
-                    placeholder="51987654321"
-                    className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors font-mono" />
-                  <p className="text-xs text-muted-foreground mt-1">Incluye el código de país sin "+". Ej: 51 para Perú, 34 para España.</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Mensaje predeterminado</label>
-                  <textarea value={c('whatsapp_message')} onChange={e => setC('whatsapp_message', e.target.value)}
-                    placeholder="Hola, me gustaría más información sobre MLM 360" rows={3}
-                    className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary transition-colors resize-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1.5">Posición del botón</label>
-                  <select value={c('whatsapp_position')} onChange={e => setC('whatsapp_position', e.target.value)}
-                    className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary">
-                    <option value="bottom-right">Abajo a la derecha</option>
-                    <option value="bottom-left">Abajo a la izquierda</option>
-                  </select>
-                </div>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                <button onClick={() => saveConfigKeys(['whatsapp_enabled', 'whatsapp_number', 'whatsapp_message', 'whatsapp_position'], 'whatsapp')}
+                  disabled={savingConfig}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+                </button>
               </div>
-              <button onClick={() => saveConfigKeys(['whatsapp_enabled', 'whatsapp_number', 'whatsapp_message', 'whatsapp_position'], 'whatsapp')}
-                disabled={savingConfig}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
-              </button>
             </div>
           )}
 
@@ -616,27 +689,37 @@ export default function AdminPage() {
           {activeModule === 'pwa' && (
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-foreground mb-5">Configuración PWA</h2>
-              <div className="space-y-4 max-w-lg">
-                {[
-                  { k: 'pwa_name', label: 'Nombre de la app', placeholder: 'MLM 360' },
-                  { k: 'pwa_short_name', label: 'Nombre corto', placeholder: 'MLM360' },
-                  { k: 'pwa_description', label: 'Descripción', placeholder: 'Sistema MLM empresarial premium' },
-                ].map(f => (
-                  <div key={f.k}>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
-                    <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  {[
+                    { k: 'pwa_name', label: 'Nombre de la app', placeholder: 'MLM 360' },
+                    { k: 'pwa_short_name', label: 'Nombre corto', placeholder: 'MLM360' },
+                  ].map(f => (
+                    <div key={f.k}>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">{f.label}</label>
+                      <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                        className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Descripción</label>
+                    <input value={c('pwa_description')} onChange={e => setC('pwa_description', e.target.value)} placeholder="Sistema MLM empresarial premium"
                       className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
                   </div>
-                ))}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Color del tema</label>
-                  <input type="color" value={c('pwa_theme_color') || '#1d4ed8'} onChange={e => setC('pwa_theme_color', e.target.value)}
-                    className="w-full h-10 px-2 py-1 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary" />
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Color del tema</label>
+                    <input type="color" value={c('pwa_theme_color') || '#1d4ed8'} onChange={e => setC('pwa_theme_color', e.target.value)}
+                      className="w-full h-10 px-2 py-1 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary" />
+                  </div>
                 </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
                 <button onClick={() => saveConfigKeys(['pwa_name', 'pwa_short_name', 'pwa_description', 'pwa_theme_color'], 'pwa')}
                   disabled={savingConfig}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar cambios
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
                 </button>
               </div>
             </div>
@@ -646,29 +729,43 @@ export default function AdminPage() {
           {activeModule === 'seo' && (
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-foreground mb-5">Configuración SEO</h2>
-              <div className="space-y-4 max-w-lg">
-                {[
-                  { k: 'seo_title', label: 'Título de la página', placeholder: 'MLM 360 - Sistema Empresarial Premium' },
-                  { k: 'seo_keywords', label: 'Palabras clave', placeholder: 'mlm peru, red de mercadeo, afiliados' },
-                  { k: 'seo_og_image', label: 'Imagen Open Graph', placeholder: 'https://mlm360.pe/og-image.jpg' },
-                  { k: 'seo_ga_id', label: 'Google Analytics ID', placeholder: 'G-XXXXXXXXXX' },
-                ].map(f => (
-                  <div key={f.k}>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
-                    <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
-                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Descripción meta</label>
-                  <textarea value={c('seo_description')} onChange={e => setC('seo_description', e.target.value)} rows={3}
-                    placeholder="El sistema MLM empresarial más completo del Perú"
-                    className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors resize-none" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  {[
+                    { k: 'seo_title', label: 'Título de la página', placeholder: 'MLM 360 - Sistema Empresarial Premium' },
+                    { k: 'seo_keywords', label: 'Palabras clave', placeholder: 'mlm peru, red de mercadeo, afiliados' },
+                  ].map(f => (
+                    <div key={f.k}>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">{f.label}</label>
+                      <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                        className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                    </div>
+                  ))}
                 </div>
+                <div className="space-y-4">
+                  {[
+                    { k: 'seo_og_image', label: 'Imagen Open Graph', placeholder: 'https://mlm360.pe/og-image.jpg' },
+                    { k: 'seo_ga_id', label: 'Google Analytics ID', placeholder: 'G-XXXXXXXXXX' },
+                  ].map(f => (
+                    <div key={f.k}>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">{f.label}</label>
+                      <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                        className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Descripción meta</label>
+                    <textarea value={c('seo_description')} onChange={e => setC('seo_description', e.target.value)} rows={3}
+                      placeholder="El sistema MLM empresarial más completo del Perú"
+                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors resize-none" />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
                 <button onClick={() => saveConfigKeys(['seo_title', 'seo_description', 'seo_keywords', 'seo_og_image', 'seo_ga_id'], 'seo')}
                   disabled={savingConfig}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar cambios
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
                 </button>
               </div>
             </div>
@@ -678,35 +775,49 @@ export default function AdminPage() {
           {activeModule === 'correos' && (
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-foreground mb-5">Configuración de Correos</h2>
-              <div className="space-y-4 max-w-lg">
-                {[
-                  { k: 'smtp_host', label: 'Servidor SMTP', placeholder: 'smtp.gmail.com' },
-                  { k: 'smtp_port', label: 'Puerto', placeholder: '587' },
-                  { k: 'smtp_user', label: 'Correo de envío', placeholder: 'no-reply@mlm360.pe' },
-                  { k: 'smtp_name', label: 'Nombre del remitente', placeholder: 'MLM 360' },
-                ].map(f => (
-                  <div key={f.k}>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">{f.label}</label>
-                    <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
-                      className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Contraseña SMTP</label>
-                  <div className="relative">
-                    <input type={showSecrets['smtp_pass'] ? 'text' : 'password'} value={c('smtp_pass')}
-                      onChange={e => setC('smtp_pass', e.target.value)} placeholder="••••••••"
-                      className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
-                    <button type="button" onClick={() => setShowSecrets(p => ({ ...p, smtp_pass: !p.smtp_pass }))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showSecrets['smtp_pass'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  {[
+                    { k: 'smtp_host', label: 'Servidor SMTP', placeholder: 'smtp.gmail.com' },
+                    { k: 'smtp_port', label: 'Puerto', placeholder: '587' },
+                  ].map(f => (
+                    <div key={f.k}>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">{f.label}</label>
+                      <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                        className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  {[
+                    { k: 'smtp_user', label: 'Correo de envío', placeholder: 'no-reply@mlm360.pe' },
+                    { k: 'smtp_name', label: 'Nombre del remitente', placeholder: 'MLM 360' },
+                  ].map(f => (
+                    <div key={f.k}>
+                      <label className="block text-xs font-medium text-foreground mb-1.5">{f.label}</label>
+                      <input value={c(f.k)} onChange={e => setC(f.k, e.target.value)} placeholder={f.placeholder}
+                        className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Contraseña SMTP</label>
+                    <div className="relative">
+                      <input type={showSecrets['smtp_pass'] ? 'text' : 'password'} value={c('smtp_pass')}
+                        onChange={e => setC('smtp_pass', e.target.value)} placeholder="••••••••"
+                        className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-foreground text-sm outline-none focus:border-primary transition-colors" />
+                      <button type="button" onClick={() => setShowSecrets(p => ({ ...p, smtp_pass: !p.smtp_pass }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showSecrets['smtp_pass'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
                 <button onClick={() => saveConfigKeys(['smtp_host', 'smtp_port', 'smtp_user', 'smtp_name', 'smtp_pass'], 'email')}
                   disabled={savingConfig}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
-                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
                 </button>
               </div>
             </div>
@@ -714,64 +825,70 @@ export default function AdminPage() {
 
           {/* ── REGISTRO ── */}
           {activeModule === 'registro' && (
-            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 space-y-5">
-              <div>
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+              <div className="mb-5">
                 <h2 className="text-lg font-semibold text-foreground">Configuración de Registro</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Decide cómo los usuarios se registran: con plan, sin plan, o plan obligatorio.</p>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">Mostrar selección de plan</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">El usuario puede elegir un plan durante el registro</div>
-                  </div>
-                  <ToggleSwitch checked={c('register_show_plans') !== 'false'} onChange={v => setC('register_show_plans', String(v))} />
-                </div>
-                {c('register_show_plans') !== 'false' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
                     <div>
-                      <div className="text-sm font-semibold text-foreground">Requerir selección de plan</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">El usuario no puede avanzar sin elegir un plan</div>
+                      <div className="text-sm font-semibold text-foreground">Mostrar selección de plan</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">El usuario puede elegir un plan durante el registro</div>
                     </div>
-                    <ToggleSwitch checked={c('register_require_plan') === 'true'} onChange={v => setC('register_require_plan', String(v))} />
+                    <ToggleSwitch checked={c('register_show_plans') !== 'false'} onChange={v => setC('register_show_plans', String(v))} />
                   </div>
-                )}
-                <div className="p-4 bg-muted rounded-xl border border-border">
-                  <label className="block text-sm font-semibold text-foreground mb-1">Plan por defecto <span className="font-normal text-muted-foreground">(slug)</span></label>
-                  <p className="text-xs text-muted-foreground mb-2">Si el usuario no elige plan, se asigna este automáticamente. Dejar vacío para no asignar ninguno.</p>
-                  <input value={c('register_default_plan')} onChange={e => setC('register_default_plan', e.target.value)}
-                    placeholder="ej: basico" className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
+                  {c('register_show_plans') !== 'false' && (
+                    <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">Requerir selección de plan</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">El usuario no puede avanzar sin elegir un plan</div>
+                      </div>
+                      <ToggleSwitch checked={c('register_require_plan') === 'true'} onChange={v => setC('register_require_plan', String(v))} />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="p-4 bg-muted rounded-xl border border-border">
+                    <label className="block text-sm font-semibold text-foreground mb-1">Plan por defecto <span className="font-normal text-muted-foreground">(slug)</span></label>
+                    <p className="text-xs text-muted-foreground mb-2">Si el usuario no elige plan, se asigna este automáticamente. Dejar vacío para no asignar ninguno.</p>
+                    <input value={c('register_default_plan')} onChange={e => setC('register_default_plan', e.target.value)}
+                      placeholder="ej: basico" className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
+                  </div>
                 </div>
               </div>
-              <button onClick={() => saveConfigKeys(['register_show_plans', 'register_require_plan', 'register_default_plan'], 'registration')}
-                disabled={savingConfig}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 text-sm font-semibold transition-colors disabled:opacity-50">
-                {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
-              </button>
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                <button onClick={() => saveConfigKeys(['register_show_plans', 'register_require_plan', 'register_default_plan'], 'registration')}
+                  disabled={savingConfig}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50">
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+                </button>
+              </div>
             </div>
           )}
 
                     {/* ── PLANES ── */}
           {activeModule === 'planes' && <PlansManager />}
           {activeModule === 'mantenimiento' && (
-            <div className="space-y-5">
-              <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                    <Wrench className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Modo Mantenimiento</h2>
-                    <p className="text-xs text-muted-foreground">Controla el acceso público al sistema</p>
-                  </div>
+            <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                  <Wrench className="w-5 h-5 text-amber-600" />
                 </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Modo Mantenimiento</h2>
+                  <p className="text-xs text-muted-foreground">Controla el acceso público al sistema</p>
+                </div>
+              </div>
 
-                <div className="space-y-4 max-w-lg">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
                   <div className={cn(
                     'flex items-center justify-between p-4 rounded-xl border-2 transition-colors',
                     c('maintenance_mode') === 'true'
                       ? 'bg-amber-500/10 border-amber-500/30'
-                      : 'bg-green-500/10 border-green-500/20',
+                      : 'bg-emerald-500/10 border-green-500/20',
                   )}>
                     <div>
                       <div className="text-sm font-semibold text-foreground">
@@ -796,9 +913,11 @@ export default function AdminPage() {
                       </p>
                     </div>
                   )}
+                </div>
 
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Mensaje para los usuarios</label>
+                    <label className="block text-xs font-medium text-foreground mb-1.5">Mensaje para los usuarios</label>
                     <textarea
                       value={c('maintenance_message')}
                       onChange={e => setC('maintenance_message', e.target.value)}
@@ -808,16 +927,18 @@ export default function AdminPage() {
                     />
                     <p className="text-xs text-muted-foreground mt-1">Este mensaje se mostrará en la página de mantenimiento.</p>
                   </div>
-
-                  <button
-                    onClick={() => saveConfigKeys(['maintenance_mode', 'maintenance_message'])}
-                    disabled={savingConfig}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Guardar configuración
-                  </button>
                 </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                <button
+                  onClick={() => saveConfigKeys(['maintenance_mode', 'maintenance_message'])}
+                  disabled={savingConfig}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {savingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar
+                </button>
               </div>
             </div>
           )}
@@ -827,6 +948,7 @@ export default function AdminPage() {
 
           {/* ── FINANZAS ── */}
           {activeModule === 'finanzas' && <GatewaysManager />}
+
         </div>
       </div>
     </div>
@@ -841,7 +963,8 @@ function PlansManager() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [allPlans, setAllPlans] = useState<Plan[]>([]);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchAll = async () => {
     const { data } = await database.select<Plan>('plans', { order: { column: 'sort_order' } });
@@ -867,12 +990,18 @@ function PlansManager() {
     toast.success(id ? 'Plan actualizado' : 'Plan creado');
   };
 
-  const handleDelete = async (id: string) => {
-    await database.delete('plans', id);
-    setDeleteId(null);
-    fetchAll();
-    refresh();
-    toast.success('Plan eliminado');
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      await database.delete('plans', deleteTarget.id);
+      fetchAll();
+      refresh();
+      toast.success('Plan eliminado');
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   const togglePopular = async (plan: Plan) => {
@@ -910,22 +1039,22 @@ function PlansManager() {
                   <span className="text-sm font-bold text-foreground">{plan.name}</span>
                   {plan.badge && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{plan.badge}</span>}
                   {plan.is_popular && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-medium">Popular</span>}
-                  {!plan.is_active && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 font-medium">Inactivo</span>}
+                  {!plan.is_active && <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">Inactivo</span>}
                 </div>
                 <div className="text-xs text-muted-foreground">{plan.description}</div>
-                <div className="text-sm font-bold text-foreground mt-1">S/ {plan.price}{plan.trial_days > 0 && <span className="text-xs text-green-600 ml-2">{plan.trial_days} días gratis</span>}</div>
+                <div className="text-sm font-bold text-foreground mt-1">S/ {plan.price}{plan.trial_days > 0 && <span className="text-xs text-emerald-600 ml-2">{plan.trial_days} días gratis</span>}</div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => togglePopular(plan)} className={cn('p-2 rounded-lg transition-colors', plan.is_popular ? 'text-amber-500 hover:bg-amber-500/10' : 'text-muted-foreground hover:bg-muted')} title="Marcar como popular">
                   <Award className="w-4 h-4" />
                 </button>
-                <button onClick={() => toggleActive(plan)} className={cn('p-2 rounded-lg transition-colors', plan.is_active ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10')} title="Activar/desactivar">
+                <button onClick={() => toggleActive(plan)} className={cn('p-2 rounded-lg transition-colors', plan.is_active ? 'text-green-500 hover:bg-emerald-500/10' : 'text-destructive hover:bg-destructive/10')} title="Activar/desactivar">
                   {plan.is_active ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
                 </button>
-                <button onClick={() => { setEditing(plan); setShowForm(true); }} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-blue-500 transition-colors" title="Editar">
-                  <Edit2 className="w-4 h-4" />
+                <button onClick={() => { setEditing(plan); setShowForm(true); }} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-primary transition-colors" title="Editar">
+                  <Pencil className="w-4 h-4" />
                 </button>
-                <button onClick={() => setDeleteId(plan.id)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-red-500 transition-colors" title="Eliminar">
+                <button onClick={() => setDeleteTarget(plan)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive transition-colors" title="Eliminar">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -935,18 +1064,14 @@ function PlansManager() {
         </div>
       )}
 
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="text-lg font-bold text-foreground text-center mb-2">Eliminar plan</h3>
-            <p className="text-sm text-muted-foreground text-center mb-5">¿Estás seguro? Esta acción no se puede deshacer.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors">Cancelar</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-red-700 transition-colors">Eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleDelete}
+        title="Eliminar plan"
+        description={<>Se eliminará permanentemente <strong>{deleteTarget?.name}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
     </div>
   );
 }
@@ -1061,7 +1186,8 @@ function RanksManager() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [allRanks, setAllRanks] = useState<Rank[]>([]);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Rank | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchAll = async () => {
     const { data } = await database.select<Rank>('ranks', { order: { column: 'sort_order' } });
@@ -1087,12 +1213,18 @@ function RanksManager() {
     toast.success(id ? 'Rango actualizado' : 'Rango creado');
   };
 
-  const handleDelete = async (id: string) => {
-    await database.delete('ranks', id);
-    setDeleteId(null);
-    fetchAll();
-    refresh();
-    toast.success('Rango eliminado');
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      await database.delete('ranks', deleteTarget.id);
+      fetchAll();
+      refresh();
+      toast.success('Rango eliminado');
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   const toggleActive = async (rank: Rank) => {
@@ -1123,18 +1255,18 @@ function RanksManager() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className={cn('text-sm font-bold', rank.color)}>{rank.name}</span>
-                  {!rank.is_active && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 font-medium">Inactivo</span>}
+                  {!rank.is_active && <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive font-medium">Inactivo</span>}
                 </div>
                 <div className="text-xs text-muted-foreground">Bono: S/ {rank.bonus} · {rank.min_affiliates} afiliados · S/ {rank.min_volume} volumen</div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => toggleActive(rank)} className={cn('p-2 rounded-lg transition-colors', rank.is_active ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10')} title="Activar/desactivar">
+                <button onClick={() => toggleActive(rank)} className={cn('p-2 rounded-lg transition-colors', rank.is_active ? 'text-green-500 hover:bg-emerald-500/10' : 'text-destructive hover:bg-destructive/10')} title="Activar/desactivar">
                   {rank.is_active ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
                 </button>
-                <button onClick={() => { setEditing(rank); setShowForm(true); }} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-blue-500 transition-colors" title="Editar">
-                  <Edit2 className="w-4 h-4" />
+                <button onClick={() => { setEditing(rank); setShowForm(true); }} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-primary transition-colors" title="Editar">
+                  <Pencil className="w-4 h-4" />
                 </button>
-                <button onClick={() => setDeleteId(rank.id)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-red-500 transition-colors" title="Eliminar">
+                <button onClick={() => setDeleteTarget(rank)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive transition-colors" title="Eliminar">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -1144,18 +1276,14 @@ function RanksManager() {
         </div>
       )}
 
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <h3 className="text-lg font-bold text-foreground text-center mb-2">Eliminar rango</h3>
-            <p className="text-sm text-muted-foreground text-center mb-5">¿Estás seguro? Esta acción no se puede deshacer.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors">Cancelar</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-red-700 transition-colors">Eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleDelete}
+        title="Eliminar rango"
+        description={<>Se eliminará permanentemente <strong>{deleteTarget?.name}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
     </div>
   );
 }
@@ -1350,13 +1478,13 @@ function GatewaysManager() {
 
   const toggleActive = async (gw: any) => {
     await database.update('payment_gateways', gw.id, { is_active: !gw.is_active, updated_at: new Date().toISOString() });
-    fetchAll();
+    setGateways(prev => prev.map(g => g.id === gw.id ? { ...g, is_active: !g.is_active } : g));
     toast.success(`${gw.name} ${!gw.is_active ? 'activado' : 'desactivado'}`);
   };
 
   const toggleTestMode = async (gw: any) => {
     await database.update('payment_gateways', gw.id, { test_mode: !gw.test_mode, updated_at: new Date().toISOString() });
-    fetchAll();
+    setGateways(prev => prev.map(g => g.id === gw.id ? { ...g, test_mode: !g.test_mode } : g));
     toast.success(`${gw.name}: ${!gw.test_mode ? 'modo prueba' : 'modo producción'}`);
   };
 
@@ -1382,18 +1510,18 @@ function GatewaysManager() {
       </div>
 
       {/* Currency / Fixer.io */}
-      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+      <div className="bg-card border border-border rounded-xl p-5 sm:p-6">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-5">
           <DollarSign className="w-4 h-4 text-primary" /> Tipo de Cambio y Fixer.io
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <label className="block text-xs font-medium text-foreground mb-1.5">Tasa PEN/USD</label>
             <div className="flex gap-2">
               <input value={exchangeRate} onChange={e => setExchangeRate(e.target.value)} placeholder="3.72"
-                className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
+                className="flex-1 px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
               <button onClick={refreshRate} disabled={refreshingRate} title="Actualizar desde Fixer.io"
-                className="p-2 border border-border rounded-lg hover:bg-muted text-muted-foreground transition-colors disabled:opacity-50">
+                className="p-2.5 border border-border rounded-lg hover:bg-muted text-muted-foreground transition-colors disabled:opacity-50">
                 <RefreshCw className={cn('w-4 h-4', refreshingRate && 'animate-spin')} />
               </button>
             </div>
@@ -1403,7 +1531,7 @@ function GatewaysManager() {
             <div className="relative">
               <input type={showSecrets['fixer'] ? 'text' : 'password'} value={fixerKey} onChange={e => setFixerKey(e.target.value)}
                 placeholder="Tu API key de fixer.io"
-                className="w-full px-3 py-2 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
+                className="w-full px-3 py-2.5 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono" />
               <button type="button" onClick={() => toggleSecret('fixer')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showSecrets['fixer'] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -1411,14 +1539,16 @@ function GatewaysManager() {
             </div>
           </div>
         </div>
-        <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+        <div className="mt-4 bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
           Obtén tu API key gratuita en <span className="text-primary font-medium">fixer.io</span>. El tipo de cambio se actualiza automáticamente.
           Haz clic en el botón de recarga para obtener la tasa actual.
         </div>
-        <button onClick={saveCurrencyConfig} disabled={savingCurrency}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
-          {savingCurrency ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
-        </button>
+        <div className="mt-6 pt-4 border-t border-border flex justify-end">
+          <button onClick={saveCurrencyConfig} disabled={savingCurrency}
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+            {savingCurrency ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar
+          </button>
+        </div>
       </div>
 
       {gateways.map(gw => {
@@ -1430,9 +1560,9 @@ function GatewaysManager() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-bold text-foreground">{gw.name}</span>
-                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', gw.currency === 'USD' ? 'bg-blue-500/10 text-blue-600' : 'bg-green-500/10 text-green-600')}>{gw.currency}</span>
-                  {hasCredentials && <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600">Configurado</span>}
-                  {!hasCredentials && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600">Sin configurar</span>}
+                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', gw.currency === 'USD' ? 'bg-primary/10 text-primary' : 'bg-emerald-500/10 text-emerald-600')}>{gw.currency}</span>
+                  {hasCredentials && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">Configurado</span>}
+                  {!hasCredentials && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600">Sin configurar</span>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{gw.description}</p>
               </div>
@@ -1440,7 +1570,7 @@ function GatewaysManager() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Prueba</span>
                   <button onClick={() => toggleTestMode(gw)}
-                    className={cn('w-9 h-5 rounded-full relative transition-colors', gw.test_mode ? 'bg-blue-500' : 'bg-muted-foreground/30')}>
+                    className={cn('w-9 h-5 rounded-full relative transition-colors', gw.test_mode ? 'bg-primary' : 'bg-muted-foreground/30')}>
                     <div className={cn('w-3 h-3 bg-white rounded-full absolute top-1 transition-transform', gw.test_mode ? 'translate-x-5' : 'translate-x-1')} />
                   </button>
                 </div>
@@ -1454,6 +1584,7 @@ function GatewaysManager() {
               </div>
             </div>
             <div className="p-4 space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {Object.entries(gw.credentials || {}).map(([key]) => {
                 const secretKey = `${gw.id}-${key}`;
                 const isSecret = key.includes('secret') || key.includes('private') || key.includes('token') || key.includes('password');
@@ -1485,16 +1616,19 @@ function GatewaysManager() {
                     type="number" min="0" max="100" step="0.01"
                     value={commRates[gw.id] ?? '0'}
                     onChange={e => setCommRates(p => ({ ...p, [gw.id]: e.target.value }))}
-                    className="w-28 px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono"
+                    className="w-28 px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground outline-none focus:border-primary font-mono"
                   />
                   <span className="text-xs text-muted-foreground">% por transacción</span>
                 </div>
               </div>
-              <button onClick={() => saveCreds(gw)} disabled={saving === gw.id}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
-                {saving === gw.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Guardar configuración
-              </button>
+              </div>
+              <div className="pt-4 border-t border-border flex justify-end">
+                <button onClick={() => saveCreds(gw)} disabled={saving === gw.id}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                  {saving === gw.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         );

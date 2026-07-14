@@ -3,8 +3,9 @@ import { useDatabase, useStorage } from '@/lib/backend';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ProductCategory } from '@/lib/storeTypes';
-import { Plus, Save, Loader as Loader2, Trash2, CreditCard as Edit2, X, Image, FolderOpen } from 'lucide-react';
+import { Plus, Save, Loader as Loader2, Trash2, Pencil, X, Image, FolderOpen } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteConfirmDialog } from '@/components/admin/DeleteConfirmDialog';
 
 const EMPTY: Partial<ProductCategory> = { name: '', slug: '', description: '', status: 'active', sort_order: 0 };
 
@@ -14,7 +15,8 @@ export default function CategoriesAdminPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<ProductCategory>>(EMPTY);
   const [showForm, setShowForm] = useState(false);
-  const [delId, setDelId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProductCategory | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const database = useDatabase();
@@ -76,10 +78,18 @@ export default function CategoriesAdminPage() {
     setForm(EMPTY); setShowForm(false); setSaving(false); load();
   };
 
-  const remove = async (id: string) => {
-    const { error } = await database.delete('product_categories', id);
-    if (error) { toast.error('No se puede eliminar — tiene productos asociados'); setDelId(null); return; }
-    toast.success('Categoría eliminada'); setDelId(null); load();
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      const { error } = await database.delete('product_categories', deleteTarget.id);
+      if (error) { toast.error('No se puede eliminar — tiene productos asociados'); return; }
+      toast.success('Categoría eliminada');
+      load();
+    } finally {
+      setDeletingId(null);
+      setDeleteTarget(null);
+    }
   };
 
   const updateSortOrder = async (id: string, newOrder: number) => {
@@ -94,7 +104,7 @@ export default function CategoriesAdminPage() {
     <div className="space-y-5 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-foreground">Categorías de Productos</h1>
+          <h1 className="text-2xl font-bold text-foreground">Categorías de Productos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{categories.length} categorías — aparecen en el carrusel de la tienda</p>
         </div>
         <button onClick={() => { setForm(EMPTY); setShowForm(true); }}
@@ -104,18 +114,18 @@ export default function CategoriesAdminPage() {
       </div>
 
       {/* Preview carousel */}
-      <div className="bg-card border border-border rounded-2xl p-5">
+      <div className="bg-card border border-border rounded-xl p-5">
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Vista previa del carrusel</p>
         <div className="flex gap-3 overflow-x-auto pb-2">
           <div className="flex-shrink-0 w-24 flex flex-col items-center gap-2">
-            <div className="w-16 h-16 rounded-2xl bg-primary/15 border-2 border-primary flex items-center justify-center">
+            <div className="w-16 h-16 rounded-xl bg-primary/15 border-2 border-primary flex items-center justify-center">
               <span className="text-lg">🏪</span>
             </div>
             <span className="text-[11px] font-bold text-primary">Todos</span>
           </div>
           {rootCategories.map(c => (
             <div key={c.id} className="flex-shrink-0 w-24 flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-2xl bg-muted overflow-hidden border border-border">
+              <div className="w-16 h-16 rounded-xl bg-muted overflow-hidden border border-border">
                 {c.image_url
                   ? <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center"><FolderOpen className="w-6 h-6 text-muted-foreground" /></div>}
@@ -128,14 +138,14 @@ export default function CategoriesAdminPage() {
 
       {/* Category list */}
       {loading ? (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-border bg-muted/30">{['Imagen','Nombre','Slug','Orden','Estado','Acciones'].map(h=><th key={h} className="text-left px-4 py-3 text-xs font-bold text-muted-foreground uppercase">{h}</th>)}</tr></thead>
             <tbody>{Array.from({length:5}).map((_,i)=>(<tr key={i} className="border-b border-border/40"><td className="px-4 py-3"><Skeleton className="w-10 h-10 rounded-xl" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td><td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td><td className="px-4 py-3"><Skeleton className="h-7 w-16 rounded-lg" /></td><td className="px-4 py-3"><Skeleton className="h-6 w-16 rounded-full" /></td><td className="px-4 py-3"><div className="flex gap-1"><Skeleton className="w-7 h-7 rounded-lg" /><Skeleton className="w-7 h-7 rounded-lg" /></div></td></tr>))}</tbody>
           </table>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -168,7 +178,7 @@ export default function CategoriesAdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full',
-                        cat.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground')}>
+                        cat.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground')}>
                         {cat.status === 'active' ? 'Activa' : 'Inactiva'}
                       </span>
                     </td>
@@ -176,19 +186,12 @@ export default function CategoriesAdminPage() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => { setForm(cat); setShowForm(true); }}
                           className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary">
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        {delId === cat.id ? (
-                          <div className="flex gap-1">
-                            <button onClick={() => remove(cat.id)} className="px-2 py-1 bg-red-500 text-white rounded text-xs font-bold">Sí</button>
-                            <button onClick={() => setDelId(null)} className="px-2 py-1 bg-muted rounded text-xs">No</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setDelId(cat.id)}
-                            className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-red-500">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button onClick={() => setDeleteTarget(cat)}
+                          className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -204,14 +207,14 @@ export default function CategoriesAdminPage() {
                       <td className="px-4 py-2 text-muted-foreground text-xs">{child.sort_order}</td>
                       <td className="px-4 py-2">
                         <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                          child.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground')}>
+                          child.status === 'active' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground')}>
                           {child.status === 'active' ? 'Activa' : 'Inactiva'}
                         </span>
                       </td>
                       <td className="px-4 py-2">
                         <button onClick={() => { setForm(child); setShowForm(true); }}
                           className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-primary">
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -229,7 +232,7 @@ export default function CategoriesAdminPage() {
       {/* Form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-card border border-border rounded-xl w-full max-w-md p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-foreground">{form.id ? 'Editar categoría' : 'Nueva categoría'}</h3>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
@@ -239,7 +242,7 @@ export default function CategoriesAdminPage() {
             <div>
               <label className="block text-xs font-bold text-foreground mb-2">Imagen de categoría</label>
               <div className="flex items-center gap-3">
-                <div className="w-20 h-20 rounded-2xl bg-muted overflow-hidden border-2 border-dashed border-border flex items-center justify-center flex-shrink-0">
+                <div className="w-20 h-20 rounded-xl bg-muted overflow-hidden border-2 border-dashed border-border flex items-center justify-center flex-shrink-0">
                   {form.image_url
                     ? <img src={form.image_url} alt="" className="w-full h-full object-cover" />
                     : <Image className="w-6 h-6 text-muted-foreground" />}
@@ -314,6 +317,15 @@ export default function CategoriesAdminPage() {
           </div>
         </div>
       )}
+
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={handleDelete}
+        title="Eliminar categoría"
+        description={<>Se eliminará permanentemente <strong>{deleteTarget?.name}</strong>. Esta acción no se puede deshacer.</>}
+        loading={!!deletingId}
+      />
     </div>
   );
 }

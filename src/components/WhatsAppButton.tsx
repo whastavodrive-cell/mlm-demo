@@ -32,8 +32,8 @@ export default function WhatsAppButton() {
       setLoaded(true);
     };
     fetchConfig();
-    // const unsubscribe = database.subscribe('system_config', fetchConfig);
-    return () => {};
+    const unsubscribe = database.subscribe('system_config', fetchConfig);
+    return unsubscribe;
   }, [database]);
 
   // Render nothing until config is fetched — prevents flash on reload
@@ -49,7 +49,7 @@ export default function WhatsAppButton() {
     <div className={cn('fixed bottom-5 z-40 transition-all', config.position === 'right' ? 'right-5' : 'left-5')}>
       {showChat && (
         <div className={cn(
-          'absolute bottom-16 w-72 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up',
+          'absolute bottom-16 w-72 bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-fade-in-up',
           config.position === 'right' ? 'right-0' : 'left-0'
         )}>
           <div className="bg-green-500 p-4 flex items-center justify-between">

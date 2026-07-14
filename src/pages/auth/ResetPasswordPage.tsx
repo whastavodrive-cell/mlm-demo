@@ -41,40 +41,41 @@ export default function ResetPasswordPage() {
 
   // Password requirements
   const requirements = [
-    { label: '8 caracteres minimo', valid: password.length >= 8 },
-    { label: 'Una mayuscula', valid: /[A-Z]/.test(password) },
-    { label: 'Un numero', valid: /[0-9]/.test(password) },
+    { label: '8 caracteres mínimo', valid: password.length >= 8 },
+    { label: 'Una mayúscula', valid: /[A-Z]/.test(password) },
+    { label: 'Un número', valid: /[0-9]/.test(password) },
   ];
 
   const metCount = requirements.filter(r => r.valid).length;
   const strength = password.length === 0 ? 0 : metCount;
-  const strengthLabels = ['', 'Debil', 'Regular', 'Fuerte'];
+  const strengthLabels = ['', 'Débil', 'Regular', 'Fuerte'];
 
   const passwordsMatch = password === confirm && confirm.length > 0;
   const canSubmit = password.length >= 8 && passwordsMatch;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) { toast.error('Minimo 8 caracteres'); return; }
-    if (password !== confirm) { toast.error('No coinciden'); return; }
+    if (password.length < 8) { toast.error('Mínimo 8 caracteres'); return; }
+    if (password !== confirm) { toast.error('Las contraseñas no coinciden'); return; }
     setLoading(true);
     const { error } = await backend.auth.updatePassword(password);
     setLoading(false);
-    if (error) { toast.error('Error al actualizar'); return; }
+    if (error) { toast.error('Error al actualizar la contraseña'); return; }
     setDone(true);
-    toast.success('Contrasena actualizada');
+    toast.success('Contraseña actualizada');
     setTimeout(() => navigate('/dashboard'), 2000);
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8 relative">
-      {/* Background decoration */}
-      <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-primary/5 dark:bg-primary/3 rounded-full blur-[100px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[200px] bg-primary/3 dark:bg-primary/2 rounded-full blur-[80px]" />
+      {/* Background decoration with premium gradient mesh */}
+      <div className="absolute inset-0 -z-10 bg-gradient-mesh overflow-hidden">
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-primary/10 dark:bg-primary/8 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[200px] bg-primary/8 dark:bg-primary/5 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-dots opacity-[0.02]" />
       </div>
 
-      <div className="w-full max-w-[360px]">
+      <div className="w-full max-w-[360px] animate-fade-in-up">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Link to="/">
@@ -82,7 +83,7 @@ export default function ResetPasswordPage() {
           </Link>
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/50 hover:bg-muted transition-colors text-muted-foreground"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/50 hover:bg-muted/80 transition-colors text-muted-foreground"
             aria-label="Toggle theme"
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -91,40 +92,40 @@ export default function ResetPasswordPage() {
 
         {checking ? (
           /* Checking state */
-          <div className="bg-card border border-border/50 rounded-2xl p-8 text-center">
+          <div className="glass-card rounded-2xl p-8 text-center">
             <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm text-muted-foreground">Verificando enlace de recuperacion...</p>
+            <p className="text-sm text-muted-foreground">Verificando enlace de recuperación...</p>
           </div>
         ) : !valid ? (
           /* Invalid link state */
-          <div className="bg-card border border-border/50 rounded-2xl p-8">
+          <div className="glass-card rounded-2xl p-8">
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-5">
                 <ShieldAlert className="w-6 h-6 text-destructive" />
               </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">Enlace invalido</h2>
+              <h2 className="text-xl font-bold text-foreground mb-2">Enlace inválido</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                Este enlace ha expirado o no es valido. Solicita uno nuevo desde la pagina de inicio de sesion.
+                Este enlace ha expirado o no es válido. Solicita uno nuevo desde la página de inicio de sesión.
               </p>
               <Link
                 to="/login"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-muted hover:bg-muted/80 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Volver al inicio
+                Volver al inicio de sesión
               </Link>
             </div>
           </div>
         ) : done ? (
           /* Success state */
-          <div className="bg-card border border-border/50 rounded-2xl p-8">
+          <div className="glass-card rounded-2xl p-8">
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
                 <CheckCircle className="w-6 h-6 text-primary" />
               </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">Contrasena actualizada</h2>
+              <h2 className="text-xl font-bold text-foreground mb-2">Contraseña actualizada</h2>
               <p className="text-sm text-muted-foreground mb-5">
-                Tu contrasena ha sido cambiada exitosamente.
+                Tu contraseña ha sido cambiada exitosamente.
               </p>
 
               {/* Progress bar */}
@@ -146,30 +147,30 @@ export default function ResetPasswordPage() {
           </div>
         ) : (
           /* Reset form */
-          <div className="bg-card border border-border/50 rounded-2xl p-6 sm:p-8">
+          <div className="glass-card rounded-2xl p-6 sm:p-8">
             <div className="text-center mb-6">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <Lock className="w-5 h-5 text-primary" />
               </div>
-              <h2 className="text-xl font-bold text-foreground">Nueva contrasena</h2>
-              <p className="text-sm text-muted-foreground mt-1">Crea una contrasena segura para tu cuenta</p>
+              <h2 className="text-xl font-bold text-foreground">Nueva contraseña</h2>
+              <p className="text-sm text-muted-foreground mt-1">Crea una contraseña segura para tu cuenta</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Password field */}
               <div>
-                <label className="block text-xs font-medium text-foreground mb-2">Nueva contrasena</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Nueva contraseña</label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type={showPwd ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Crea una contrasena"
+                    placeholder="Crea una contraseña"
                     className={cn(
-                      "w-full pl-11 pr-12 py-3 rounded-xl text-sm bg-muted/30 border border-border/50 transition-all outline-none",
-                      "placeholder:text-muted-foreground/60",
-                      "focus:border-primary focus:bg-background"
+                      "w-full pl-11 pr-12 py-3.5 rounded-xl text-sm bg-muted/30 border border-border/50 transition-all outline-none",
+                      "placeholder:text-muted-foreground/50",
+                      "focus:border-primary focus:bg-background hover:border-border"
                     )}
                   />
                   <button
@@ -195,7 +196,7 @@ export default function ResetPasswordPage() {
                         ))}
                       </div>
                       <span className={cn(
-                        "text-xs font-medium min-w-[50px] text-right",
+                        "text-sm font-medium min-w-[55px] text-right",
                         strength === 3 ? "text-primary" : strength === 2 ? "text-warning" : "text-destructive"
                       )}>
                         {strengthLabels[strength]}
@@ -203,7 +204,7 @@ export default function ResetPasswordPage() {
                     </div>
                     <div className="space-y-1">
                       {requirements.map((req, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
+                        <div key={i} className="flex items-center gap-2 text-sm">
                           <div className={cn(
                             "w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all",
                             req.valid ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
@@ -222,20 +223,20 @@ export default function ResetPasswordPage() {
 
               {/* Confirm password */}
               <div>
-                <label className="block text-xs font-medium text-foreground mb-2">Confirmar contrasena</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Confirmar contraseña</label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type={showConfirmPwd ? 'text' : 'password'}
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
-                    placeholder="Repite la contrasena"
+                    placeholder="Repite la contraseña"
                     className={cn(
-                      "w-full pl-11 pr-12 py-3 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
-                      "placeholder:text-muted-foreground/60",
+                      "w-full pl-11 pr-12 py-3.5 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
+                      "placeholder:text-muted-foreground/50",
                       confirm && !passwordsMatch
                         ? "border-destructive focus:border-destructive"
-                        : "border-border/50 focus:border-primary focus:bg-background"
+                        : "border-border/50 focus:border-primary focus:bg-background hover:border-border"
                     )}
                   />
                   <button
@@ -250,13 +251,13 @@ export default function ResetPasswordPage() {
                 {confirm && !passwordsMatch && (
                   <p className="text-xs text-destructive mt-1.5 flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-destructive" />
-                    Las contrasenas no coinciden
+                    Las contraseñas no coinciden
                   </p>
                 )}
                 {passwordsMatch && (
                   <p className="text-xs text-primary mt-1.5 flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" />
-                    Contrasenas coinciden
+                    Contraseñas coinciden
                   </p>
                 )}
               </div>
@@ -266,8 +267,8 @@ export default function ResetPasswordPage() {
                 type="submit"
                 disabled={loading || !canSubmit}
                 className={cn(
-                  "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all",
-                  "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
+                  "w-full py-3.5 rounded-xl font-semibold text-base flex items-center justify-center gap-2 transition-all",
+                  "bg-primary text-primary-foreground shadow-premium",
                   "hover:opacity-90 active:scale-[0.99]",
                   "disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
@@ -276,7 +277,7 @@ export default function ResetPasswordPage() {
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>Actualizar contrasena</span>
+                    <span>Actualizar contraseña</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -289,7 +290,7 @@ export default function ResetPasswordPage() {
         <div className="mt-6 text-center">
           <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" />
-            Volver al inicio
+            Volver al inicio de sesión
           </Link>
         </div>
       </div>

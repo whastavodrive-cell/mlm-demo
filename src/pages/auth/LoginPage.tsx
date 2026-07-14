@@ -19,6 +19,25 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+function translateAuthError(msg: string): string {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('email not confirmed')) return 'Tu correo no está confirmado. Revisa tu bandeja de entrada y confirma tu cuenta.';
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials')) return 'Correo o contraseña incorrectos.';
+  if (m.includes('too many requests') || m.includes('rate limit')) return 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
+  if (m.includes('user not found')) return 'No existe una cuenta con este correo.';
+  if (m.includes('email rate limit')) return 'Demasiados correos enviados. Espera unos minutos.';
+  if (m.includes('forbidden') || m.includes('forbidden action')) return 'Acción no permitida. Contacta con soporte.';
+  if (m.includes('signup disabled') || m.includes('signups not allowed')) return 'El registro está deshabilitado temporalmente.';
+  if (m.includes('weak password')) return 'La contraseña es demasiado débil.';
+  if (m.includes('over request rate limit')) return 'Demasiadas solicitudes. Espera unos minutos.';
+  if (m.includes('reauthentication needed') || m.includes('reauthentication')) return 'Necesitas volver a iniciar sesión.';
+  if (m.includes('email address not authorized')) return 'Este correo no está autorizado para registrarse.';
+  if (m.includes('email already registered') || m.includes('already registered')) return 'Este correo ya está registrado.';
+  if (m.includes('invalid email')) return 'Correo electrónico inválido.';
+  if (m.includes('password should be at least')) return 'La contraseña debe tener al menos 6 caracteres.';
+  return msg || 'Ocurrió un error. Intenta de nuevo.';
+}
+
 function GoogleIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -71,7 +90,7 @@ export default function LoginPage() {
     }
     const result = await backend.auth.signIn(data.email, data.password);
     if (result.error) {
-      toast.error(result.error === 'Invalid login credentials' ? 'Credenciales incorrectas' : result.error);
+      toast.error(translateAuthError(result.error));
       setLoading(false);
     } else {
       toast.success('Bienvenido!');
@@ -95,47 +114,31 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
       {/* Brand panel - desktop only */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 bg-gradient-to-br from-primary/5 via-background to-primary/3 flex-col justify-between p-10 relative overflow-hidden">
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 opacity-[0.02] dark:opacity-[0.04]" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 1px)',
-          backgroundSize: '24px 24px'
-        }} />
+      <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 bg-gradient-mesh flex-col items-center justify-center p-10 relative overflow-hidden">
+        <div className="absolute inset-0 bg-dots opacity-[0.03]" />
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/20 dark:bg-primary/15 rounded-full blur-[100px]" />
+        <div className="absolute bottom-20 right-10 w-56 h-56 bg-primary/15 dark:bg-primary/10 rounded-full blur-[80px]" />
+        <div className="absolute top-1/2 left-1/3 w-40 h-40 bg-primary/10 dark:bg-primary/5 rounded-full blur-[60px]" />
 
-        {/* Gradient orbs */}
-        <div className="absolute top-20 left-10 w-64 h-64 bg-primary/20 dark:bg-primary/10 rounded-full blur-[80px]" />
-        <div className="absolute bottom-20 right-10 w-48 h-48 bg-primary/15 dark:bg-primary/5 rounded-full blur-[60px]" />
-
-        <div className="relative z-10">
-          <Link to="/" className="inline-flex items-center gap-2.5">
+        {/* Logo pinned top-left */}
+        <div className="absolute top-8 left-8 z-10">
+          <Link to="/">
             <LogoWithText value={logoValue} fallbackText={companyName} size="w-9 h-9" textClass="font-semibold text-foreground" />
           </Link>
         </div>
 
-        <div className="relative z-10 max-w-md">
-          <h1 className="text-3xl xl:text-4xl font-bold text-foreground leading-[1.1] mb-4 tracking-tight">
+        {/* Centered brand text */}
+        <div className="relative z-10 max-w-xs w-full">
+          <h1 className="text-3xl xl:text-4xl font-bold text-foreground leading-[1.15] mb-4 tracking-tight">
             Gestiona tu red.<br />
-            <span className="text-primary">Crece sin limites.</span>
+            <span className="text-primary">Crece sin límites.</span>
           </h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
             La plataforma MLM completa para gestionar tu negocio. Comisiones, genealogía, reportes y más.
           </p>
-
-          <div className="flex items-center gap-6 mt-8 pt-8 border-t border-border/50">
-            {[
-              { v: '12K+', l: 'Usuarios' },
-              { v: '99.9%', l: 'Uptime' },
-              { v: '4.9', l: 'Rating' },
-            ].map((s, i) => (
-              <div key={i}>
-                <div className="text-xl font-bold text-foreground">{s.v}</div>
-                <div className="text-xs text-muted-foreground">{s.l}</div>
-              </div>
-            ))}
-          </div>
         </div>
 
-        <div className="relative z-10 text-xs text-muted-foreground">
+        <div className="absolute bottom-6 left-8 z-10 text-xs text-muted-foreground">
           Powered by MLM 360
         </div>
       </div>
@@ -143,33 +146,26 @@ export default function LoginPage() {
       {/* Form panel */}
       <div className="flex-1 flex flex-col min-h-screen lg:min-h-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-6 lg:px-10 py-5 border-b border-border/50">
+        <div className="flex items-center justify-between px-6 lg:px-10 py-5">
+          {/* Logo visible on mobile only */}
           <Link to="/" className="lg:hidden">
             <LogoWithText value={logoValue} fallbackText={companyName} size="w-8 h-8" textClass="font-semibold text-foreground" />
           </Link>
           <div className="hidden lg:block" />
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground hidden sm:block">
-              Sin cuenta?{' '}
-              <Link to="/registro" className="text-primary font-medium hover:opacity-80 transition-opacity">
-                Registrate
-              </Link>
-            </span>
-            <button
-              onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/50 hover:bg-muted transition-colors text-muted-foreground"
-              aria-label="Toggle theme"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
+          <button
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/50 hover:bg-muted/80 transition-colors text-muted-foreground"
+            aria-label="Cambiar tema"
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
         </div>
 
-        {/* Form */}
+        {/* Form with premium styling */}
         <div className="flex-1 flex items-center justify-center px-6 py-10">
-          <div className="w-full max-w-[360px]">
+          <div className="w-full max-w-[360px] animate-fade-in-up">
             <div className="mb-7">
-              <h2 className="text-2xl font-bold text-foreground tracking-tight">Iniciar sesion</h2>
+              <h2 className="text-2xl font-bold text-foreground tracking-tight">Iniciar sesión</h2>
               <p className="text-sm text-muted-foreground mt-1.5">Ingresa tus credenciales para continuar.</p>
             </div>
 
@@ -194,7 +190,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
-                <label className="block text-xs font-medium text-foreground mb-2">Correo electronico</label>
+                <label className="block text-sm font-medium text-foreground mb-2">Correo electrónico</label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
@@ -202,11 +198,11 @@ export default function LoginPage() {
                     {...register('email')}
                     placeholder="tu@correo.com"
                     className={cn(
-                      "w-full pl-11 pr-4 py-3 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
-                      "placeholder:text-muted-foreground/60",
+                      "w-full pl-11 pr-4 py-3.5 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
+                      "placeholder:text-muted-foreground/50",
                       errors.email
                         ? "border-destructive focus:border-destructive"
-                        : "border-border/50 focus:border-primary focus:bg-background"
+                        : "border-border/50 focus:border-primary focus:bg-background hover:border-border"
                     )}
                   />
                 </div>
@@ -220,13 +216,13 @@ export default function LoginPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-medium text-foreground">Contrasena</label>
+                  <label className="text-sm font-medium text-foreground">Contraseña</label>
                   <button
                     type="button"
                     onClick={() => setForgotOpen(true)}
-                    className="text-xs text-primary font-medium hover:opacity-80 transition-opacity"
+                    className="text-sm text-primary font-medium hover:opacity-80 transition-opacity"
                   >
-                    Olvidaste?
+                    ¿Olvidaste?
                   </button>
                 </div>
                 <div className="relative">
@@ -234,13 +230,13 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     {...register('password')}
-                    placeholder=""
+                    placeholder="Tu contraseña"
                     className={cn(
-                      "w-full pl-11 pr-12 py-3 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
-                      "placeholder:text-muted-foreground/60",
+                      "w-full pl-11 pr-12 py-3.5 rounded-xl text-sm bg-muted/30 border transition-all outline-none",
+                      "placeholder:text-muted-foreground/50",
                       errors.password
                         ? "border-destructive focus:border-destructive"
-                        : "border-border/50 focus:border-primary focus:bg-background"
+                        : "border-border/50 focus:border-primary focus:bg-background hover:border-border"
                     )}
                   />
                   <button
@@ -261,31 +257,31 @@ export default function LoginPage() {
               </div>
 
               {/* Remember me */}
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setRememberMe(!rememberMe)}
+              <div
+                className="flex items-center gap-3 cursor-pointer select-none"
+                onClick={() => setRememberMe(!rememberMe)}
+              >
+                <div
                   className={cn(
-                    "w-4 h-4 rounded flex items-center justify-center transition-all border",
+                    "w-5 h-5 rounded-md flex items-center justify-center transition-all border-2 shrink-0",
                     rememberMe
                       ? "bg-primary border-primary text-primary-foreground"
-                      : "bg-background border-border hover:border-primary/50"
+                      : "bg-background border-border hover:border-primary/60"
                   )}
-                  aria-label="Recordarme"
                 >
-                  {rememberMe && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
-                </button>
-                <label className="text-sm text-muted-foreground cursor-pointer select-none">Recordarme</label>
+                  {rememberMe && <Check className="w-3 h-3" strokeWidth={3} />}
+                </div>
+                <span className="text-sm text-foreground/80">Recordarme</span>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
                 className={cn(
-                  "w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all",
-                  "bg-primary text-primary-foreground shadow-sm shadow-primary/20",
+                  "w-full py-3.5 rounded-xl font-semibold text-base flex items-center justify-center gap-2 transition-all",
+                  "bg-primary text-primary-foreground shadow-premium",
                   "hover:opacity-90 active:scale-[0.99]",
-                  "disabled:opacity-60 disabled:cursor-not-allowed"
+                  "disabled:opacity-50 disabled:cursor-not-allowed"
                 )}
               >
                 {loading ? (
@@ -299,12 +295,12 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Mobile footer */}
-            <div className="lg:hidden mt-8 pt-6 border-t border-border/50 text-center">
+            {/* Auth toggle */}
+            <div className="mt-8 pt-6 border-t border-border/50 text-center">
               <span className="text-sm text-muted-foreground">
-                Sin cuenta?{' '}
+                ¿Sin cuenta?{' '}
                 <Link to="/registro" className="text-primary font-medium hover:opacity-80 transition-opacity">
-                  Registrate
+                  Regístrate
                 </Link>
               </span>
             </div>
@@ -312,16 +308,16 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Forgot password modal */}
+      {/* Forgot password modal with glass effect */}
       {forgotOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-overlay">
           <div
-            className="w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-xl animate-in fade-in-0 zoom-in-95 duration-200"
+            className="w-full max-w-sm glass-card rounded-2xl p-6 shadow-premium-lg animate-scale-in"
             role="dialog"
             aria-modal="true"
           >
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-lg text-foreground">Recuperar contrasena</h3>
+              <h3 className="font-semibold text-lg text-foreground">Recuperar contraseña</h3>
               <button
                 onClick={() => { setForgotOpen(false); setForgotSent(false); }}
                 className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground"
@@ -348,7 +344,7 @@ export default function LoginPage() {
             ) : (
               <>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Ingresa tu correo y te enviaremos un enlace para restablecer tu contrasena.
+                  Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.
                 </p>
                 <input
                   type="email"
