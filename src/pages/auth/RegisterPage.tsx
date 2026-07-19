@@ -52,7 +52,7 @@ export default function RegisterPage() {
   const backend = useBackend();
   const database = useDatabase();
   const storage = useStorage();
-  const { plans, currency, currencySymbol, exchangeRate, company, logoValue, loading: configLoading } = useConfig();
+  const { plans, currency, currencySymbol, exchangeRate, company, logoValue, logoSizes, loading: configLoading } = useConfig();
   const { theme, setTheme } = useThemeStore();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -87,8 +87,6 @@ export default function RegisterPage() {
       setSelectedPlan(auto);
     }
   }, [searchParams, activePlans, showPlans, defaultPlan]);
-
-  if (user) return <Navigate to="/dashboard" />;
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
@@ -168,6 +166,8 @@ export default function RegisterPage() {
   const strength = pwdVal.length === 0 ? 0 : metCount;
   const strengthLabels = ['', 'Débil', 'Regular', 'Fuerte'];
 
+  if (user) return <Navigate to="/dashboard" />;
+
   return (
     <div className="min-h-screen bg-background flex flex-col lg:flex-row">
       {/* Brand panel - desktop only */}
@@ -180,7 +180,7 @@ export default function RegisterPage() {
         {/* Logo pinned top-left */}
         <div className="absolute top-8 left-8 z-10">
           <Link to="/">
-            <LogoWithText value={logoValue} fallbackText={companyName} size="w-9 h-9" textClass="font-semibold text-foreground" />
+            <LogoWithText value={logoValue} fallbackText={companyName} pixelSize={logoSizes.login || 36} pixelHeight={logoSizes.loginHeight || logoSizes.login || 36} textClass="font-semibold text-foreground" />
           </Link>
         </div>
 
@@ -207,7 +207,7 @@ export default function RegisterPage() {
         <div className="flex items-center justify-between px-6 lg:px-10 py-5">
           {/* Logo visible on mobile only */}
           <Link to="/" className="lg:hidden">
-            <LogoWithText value={logoValue} fallbackText={companyName} size="w-8 h-8" textClass="font-semibold text-foreground" />
+            <LogoWithText value={logoValue} fallbackText={companyName} pixelSize={logoSizes.login || 36} pixelHeight={logoSizes.loginHeight || logoSizes.login || 36} textClass="font-semibold text-foreground" />
           </Link>
           <div className="hidden lg:block" />
           <button

@@ -54,7 +54,7 @@ export default function LoginPage() {
   const backend = useBackend();
   const { theme, setTheme } = useThemeStore();
   const { user } = useAuthStore();
-  const { company, logoValue } = useConfig();
+  const { company, logoValue, logoSizes } = useConfig();
   const companyName = company.company_name || 'MLM 360';
   const isDark = theme === 'dark';
 
@@ -67,8 +67,6 @@ export default function LoginPage() {
 
   const googleEnabled = company.google_oauth_enabled === 'true';
 
-  if (user) return <Navigate to="/dashboard" />;
-
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
@@ -80,6 +78,8 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, [setValue]);
+
+  if (user) return <Navigate to="/dashboard" />;
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -123,7 +123,7 @@ export default function LoginPage() {
         {/* Logo pinned top-left */}
         <div className="absolute top-8 left-8 z-10">
           <Link to="/">
-            <LogoWithText value={logoValue} fallbackText={companyName} size="w-9 h-9" textClass="font-semibold text-foreground" />
+            <LogoWithText value={logoValue} fallbackText={companyName} pixelSize={logoSizes.login || 36} pixelHeight={logoSizes.loginHeight || logoSizes.login || 36} textClass="font-semibold text-foreground" />
           </Link>
         </div>
 
@@ -149,7 +149,7 @@ export default function LoginPage() {
         <div className="flex items-center justify-between px-6 lg:px-10 py-5">
           {/* Logo visible on mobile only */}
           <Link to="/" className="lg:hidden">
-            <LogoWithText value={logoValue} fallbackText={companyName} size="w-8 h-8" textClass="font-semibold text-foreground" />
+            <LogoWithText value={logoValue} fallbackText={companyName} pixelSize={logoSizes.login || 36} pixelHeight={logoSizes.loginHeight || logoSizes.login || 36} textClass="font-semibold text-foreground" />
           </Link>
           <div className="hidden lg:block" />
           <button

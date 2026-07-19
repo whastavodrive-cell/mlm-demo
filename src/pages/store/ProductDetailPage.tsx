@@ -3,6 +3,7 @@ import { useDatabase, useStorage } from '@/lib/backend';
 import { useCart } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
 import { useConfig } from '@/store/configStore';
+import { setProductSchema, clearProductSchema } from '@/hooks/useSeo';
 import ProductCard from '@/components/store/ProductCard';
 import { useNavigate } from '@/lib/router';
 import { cn } from '@/lib/utils';
@@ -136,7 +137,7 @@ export default function ProductDetailPage() {
   const slug = window.location.pathname.split('/').filter(p => p && p !== 'tienda').pop() || '';
   const { addItem, items } = useCart();
   const { user } = useAuthStore();
-  const { exchangeRate, showUsd, setShowUsd } = useConfig();
+  const { exchangeRate, showUsd, setShowUsd, company } = useConfig();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -226,6 +227,19 @@ export default function ProductDetailPage() {
   }, [slug, user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Inject dynamic Product JSON-LD schema using live product + company data
+  useEffect(() => {
+    if (product) {
+      setProductSchema(product, {
+        companyName: company.company_name || '',
+        websiteUrl: company.website_url || window.location.origin,
+      });
+    } else {
+      clearProductSchema();
+    }
+    return () => clearProductSchema();
+  }, [product, company.company_name, company.website_url]);
 
   const variants = product
     ? ((product.variants || []) as ProductVariant[])
@@ -364,7 +378,7 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
         <div className="pt-16 max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-3">
@@ -381,9 +395,9 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <div className="pt-24 flex flex-col items-center justify-center gap-4 px-4 text-center min-h-[60vh]">
+        <div className="pt-16 flex flex-col items-center justify-center gap-4 px-4 text-center min-h-[60vh]">
           <Package className="w-16 h-16 text-muted-foreground/20" />
           <h2 className="text-xl font-bold text-foreground">Producto no encontrado</h2>
           <button onClick={() => navigate('/tienda')}
@@ -397,7 +411,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
       {/* Breadcrumb */}

@@ -1,65 +1,146 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuthStore } from '@/store/authStore';
-import { ThemeProvider } from '@/store/themeStore';
+import { ThemeProvider, ThemeSync } from '@/store/themeStore';
 import { UIProvider } from '@/store/uiStore';
 import { ConfigProvider, useConfig } from '@/store/configStore';
 import { BackendProvider } from '@/lib/backend';
 import { Router, Routes, Route, Navigate, useLocation } from '@/lib/router';
-
-import LandingPage from '@/pages/landing/LandingPage';
-import NosotrosPage from '@/pages/landing/NosotrosPage';
-import PreciosPage from '@/pages/landing/PreciosPage';
-import EmpresaPage from '@/pages/landing/EmpresaPage';
-import ContactoPage from '@/pages/landing/ContactoPage';
-import PlanesPage from '@/pages/landing/PlanesPage';
-import BlogPage from '@/pages/landing/BlogPage';
-import BlogDetailPage from '@/pages/landing/BlogDetailPage';
-import LibroReclamacionesPage from '@/pages/landing/LibroReclamacionesPage';
-import LegalPage from '@/pages/landing/LegalPage';
-import PagoPage from '@/pages/landing/PagoPage';
-import PedidosPage from '@/pages/landing/PedidosPage';
-import LoginPage from '@/pages/auth/LoginPage';
-import RegisterPage from '@/pages/auth/RegisterPage';
-import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import WhatsAppButton from '@/components/WhatsAppButton';
-import NotFoundPage from '@/pages/NotFoundPage';
-import StorePage from '@/pages/store/StorePage';
-import ProductDetailPage from '@/pages/store/ProductDetailPage';
-import CartPage from '@/pages/store/CartPage';
-import CheckoutPage from '@/pages/store/CheckoutPage';
-import ComparePage from '@/pages/store/ComparePage';
-import WishlistPage from '@/pages/store/WishlistPage';
 import { CartProvider } from '@/store/cartStore';
-import { Boxes, Wrench as WrenchIcon } from 'lucide-react';
+import { useSeo } from '@/hooks/useSeo';
+import { usePwa } from '@/hooks/usePwa';
+import Logo from '@/components/Logo';
+
+const LandingPage = lazy(() => import('@/pages/landing/LandingPage'));
+const NosotrosPage = lazy(() => import('@/pages/landing/NosotrosPage'));
+const PreciosPage = lazy(() => import('@/pages/landing/PreciosPage'));
+const EmpresaPage = lazy(() => import('@/pages/landing/EmpresaPage'));
+const ContactoPage = lazy(() => import('@/pages/landing/ContactoPage'));
+const PlanesPage = lazy(() => import('@/pages/landing/PlanesPage'));
+const BlogPage = lazy(() => import('@/pages/landing/BlogPage'));
+const BlogDetailPage = lazy(() => import('@/pages/landing/BlogDetailPage'));
+const LibroReclamacionesPage = lazy(() => import('@/pages/landing/LibroReclamacionesPage'));
+const LegalPage = lazy(() => import('@/pages/landing/LegalPage'));
+const PagoPage = lazy(() => import('@/pages/landing/PagoPage'));
+const PedidosPage = lazy(() => import('@/pages/landing/PedidosPage'));
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'));
+const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'));
+const StorePage = lazy(() => import('@/pages/store/StorePage'));
+const ProductDetailPage = lazy(() => import('@/pages/store/ProductDetailPage'));
+const CartPage = lazy(() => import('@/pages/store/CartPage'));
+const CheckoutPage = lazy(() => import('@/pages/store/CheckoutPage'));
+const ComparePage = lazy(() => import('@/pages/store/ComparePage'));
+const WishlistPage = lazy(() => import('@/pages/store/WishlistPage'));
+const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
 const LANDING_PATHS = ['/', '/nosotros', '/precios', '/empresa', '/contacto', '/planes', '/blog', '/pago', '/login', '/registro', '/reset-password', '/tienda', '/carrito', '/checkout', '/favoritos', '/tienda/comparar', '/libro-reclamaciones', '/legal'];
 const ADMIN_BYPASS_ROLES = ['super_admin', 'admin'];
 
+function useCountdown(targetIso: string) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (!targetIso) { setRemaining(null); return; }
+    const target = new Date(targetIso).getTime();
+    if (isNaN(target)) { setRemaining(null); return; }
+    const tick = () => {
+      const diff = target - Date.now();
+      setRemaining(diff > 0 ? diff : 0);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetIso]);
+  return remaining;
+}
+
+function formatCountdown(ms: number) {
+  const total = Math.floor(ms / 1000);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return { d, h, m, s };
+}
+
 function MaintenancePage() {
   const { company } = useConfig();
-  const { user } = useAuthStore();
   const name = company.company_name || 'MLM 360';
-  const msg = company.maintenance_message || 'Estamos realizando mejoras. Volvemos pronto.';
+  const msg = company.maintenance_message || 'Estamos realizando mejoras en nuestra plataforma. Volveremos pronto con una experiencia renovada.';
+  const title = company.maintenance_title || 'Volveremos pronto';
+  const themeColor = company.pwa_theme_color || '#C79B3B';
+  const showCountdown = company.maintenance_countdown_enabled === 'true';
+  const countdownDate = company.maintenance_countdown_date || '';
+  const remaining = useCountdown(countdownDate);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-        <WrenchIcon className="w-8 h-8 text-primary" />
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+      {/* Faded grid mesh background */}
+      <div
+        className="absolute inset-0 -z-10 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(to right, ${themeColor}22 1px, transparent 1px), linear-gradient(to bottom, ${themeColor}22 1px, transparent 1px)`,
+          backgroundSize: '56px 56px',
+          maskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%)',
+        }}
+      />
+      {/* Soft glow accents */}
+      <div className="absolute inset-0 -z-10 opacity-[0.07] pointer-events-none">
+        <div className="absolute -top-32 -left-32 w-[30rem] h-[30rem] rounded-full blur-3xl" style={{ background: themeColor }} />
+        <div className="absolute -bottom-40 -right-32 w-[34rem] h-[34rem] rounded-full blur-3xl" style={{ background: themeColor }} />
       </div>
-      <div className="flex items-center gap-2 mb-4">
-        <Boxes className="w-6 h-6 text-primary" />
-        <span className="text-xl font-bold text-foreground">{name}</span>
-      </div>
-      <h1 className="text-3xl font-bold text-foreground mb-3">En mantenimiento</h1>
-      <p className="text-muted-foreground max-w-md mb-8">{msg}</p>
-      {user && ADMIN_BYPASS_ROLES.includes((user as any).role) && (
-        <div className="text-xs text-muted-foreground bg-muted px-4 py-2 rounded-full">
-          Eres administrador — puedes acceder igualmente al{' '}
-          <a href="/dashboard" className="text-primary font-medium underline">panel</a>.
+
+      <div className="w-full max-w-xl text-center">
+        {/* Brand logo */}
+        <div className="flex justify-center mb-12 w-full">
+          <Logo
+            value={company.logo_value || ''}
+            fallbackText={name}
+            imgClass="max-w-[196px] w-full h-auto object-contain"
+          />
         </div>
-      )}
+
+        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-4">
+          {title}
+        </h1>
+        <p className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-md mx-auto mb-10">
+          {msg}
+        </p>
+
+        {/* Countdown timer */}
+        {showCountdown && remaining !== null && remaining > 0 && (() => {
+          const { d, h, m, s } = formatCountdown(remaining);
+          const units = [
+            { v: d, l: 'Días' },
+            { v: h, l: 'Horas' },
+            { v: m, l: 'Min' },
+            { v: s, l: 'Seg' },
+          ];
+          return (
+            <div className="flex justify-center gap-3 sm:gap-4 mb-10">
+              {units.map((u, i) => (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <div
+                    className="relative w-[18vw] max-w-[90px] aspect-square rounded-2xl flex items-center justify-center text-3xl sm:text-4xl font-bold tabular-nums select-none overflow-hidden"
+                    style={{
+                      background: 'hsl(var(--muted))',
+                      border: '1px solid hsl(var(--border))',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  >
+                    <span className="absolute inset-x-0 top-1/2 -translate-y-px h-px bg-current opacity-10 pointer-events-none" />
+                    <span className="relative z-10">{String(u.v).padStart(2, '0')}</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-semibold">{u.l}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
@@ -88,24 +169,28 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function WhatsAppGate() {
   const { pathname } = useLocation();
+  const { company } = useConfig();
   const isLanding = LANDING_PATHS.some(p => pathname === p || pathname.startsWith(p + '?'));
-  if (!isLanding) return null;
+  const isMaintenanceOn = company.maintenance_mode === 'true';
+  if (!isLanding || isMaintenanceOn) return null;
   return <WhatsAppButton />;
 }
 
 function MaintenanceGate({ children }: { children: ReactNode }) {
   const { company } = useConfig();
-  const { user } = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
   const { pathname } = useLocation();
 
   const isMaintenanceOn = company.maintenance_mode === 'true';
   const isAdmin = user && ADMIN_BYPASS_ROLES.includes((user as any).role);
   const isDashboard = pathname.startsWith('/dashboard');
 
-  // Admins can always reach dashboard; everyone sees maintenance on public pages
-  if (isMaintenanceOn && !isAdmin && !isDashboard) {
-    // Allow login so admin can sign in
-    if (pathname === '/login') return <>{children}</>;
+  if (isMaintenanceOn && !isDashboard) {
+    if (authLoading) return <AppSkeleton />;
+    if (pathname === '/login' || pathname === '/registro' || pathname === '/reset-password') return <>{children}</>;
+    // Admins bypass maintenance entirely — they see the regular content
+    if (isAdmin) return <>{children}</>;
+    // Non-admins see the maintenance page
     return <MaintenancePage />;
   }
 
@@ -113,8 +198,15 @@ function MaintenanceGate({ children }: { children: ReactNode }) {
 }
 
 function AppRoutes() {
-  const { loading } = useConfig();
+  const { loading, company } = useConfig();
   const [forcedReady, setForcedReady] = useState(false);
+
+  useSeo();
+  usePwa();
+
+  // Sync global theme from system_config to all users
+  const globalTheme = company.global_theme;
+  // ThemeSync handles reading global_theme and persisting theme changes
 
   useEffect(() => {
     const t = setTimeout(() => setForcedReady(true), 2000);
@@ -124,31 +216,34 @@ function AppRoutes() {
   if (loading && !forcedReady) return <AppSkeleton />;
   return (
     <MaintenanceGate>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/nosotros" element={<NosotrosPage />} />
-        <Route path="/precios" element={<PreciosPage />} />
-        <Route path="/empresa" element={<EmpresaPage />} />
-        <Route path="/contacto" element={<ContactoPage />} />
-        <Route path="/planes" element={<PlanesPage />} />
-        <Route path="/blog" element={<BlogPage />} />
-        <Route path="/blog/:slug" element={<BlogDetailPage />} />
-        <Route path="/libro-reclamaciones" element={<LibroReclamacionesPage />} />
-        <Route path="/legal/:slug" element={<LegalPage />} />
-        <Route path="/pago" element={<PagoPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/registro" element={<RegisterPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/tienda" element={<StorePage />} />
-        <Route path="/tienda/comparar" element={<ComparePage />} />
-        <Route path="/tienda/*" element={<ProductDetailPage />} />
-        <Route path="/carrito" element={<CartPage />} />
-        <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-        <Route path="/favoritos" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
-        <Route path="/pedidos" element={<ProtectedRoute><PedidosPage /></ProtectedRoute>} />
-        <Route path="/dashboard/*" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+      <ThemeSync globalTheme={globalTheme} />
+      <Suspense fallback={<AppSkeleton />}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/nosotros" element={<NosotrosPage />} />
+          <Route path="/precios" element={<PreciosPage />} />
+          <Route path="/empresa" element={<EmpresaPage />} />
+          <Route path="/contacto" element={<ContactoPage />} />
+          <Route path="/planes" element={<PlanesPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogDetailPage />} />
+          <Route path="/libro-reclamaciones" element={<LibroReclamacionesPage />} />
+          <Route path="/legal/:slug" element={<LegalPage />} />
+          <Route path="/pago" element={<PagoPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/registro" element={<RegisterPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/tienda" element={<StorePage />} />
+          <Route path="/tienda/comparar" element={<ComparePage />} />
+          <Route path="/tienda/*" element={<ProductDetailPage />} />
+          <Route path="/carrito" element={<CartPage />} />
+          <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+          <Route path="/favoritos" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
+          <Route path="/pedidos" element={<ProtectedRoute><PedidosPage /></ProtectedRoute>} />
+          <Route path="/dashboard/*" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
     </MaintenanceGate>
   );
 }

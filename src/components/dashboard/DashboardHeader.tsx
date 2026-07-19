@@ -18,6 +18,21 @@ import Logo from '@/components/Logo';
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
+// Returns className + style so badge colors work whether the DB stores a Tailwind class
+// (e.g. "text-amber-600") or a hex/rgb value (e.g. "#C79B3B").
+function resolveBadgeColor(color: string | undefined, bg: string | undefined, fallbackColor: string, fallbackBg: string) {
+  const isRaw = (v?: string) => v && (v.startsWith('#') || v.startsWith('rgb') || v.startsWith('hsl'));
+  const style: React.CSSProperties = {};
+  if (isRaw(color)) style.color = color;
+  if (isRaw(bg)) style.backgroundColor = bg;
+  const cls = cn(
+    'flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+    !isRaw(color) ? (color || fallbackColor) : '',
+    !isRaw(bg) ? (bg || fallbackBg) : '',
+  );
+  return { cls, style };
+}
+
 interface SearchResult {
   type: 'user' | 'product' | 'order' | 'commission' | 'nav';
   id: string;
@@ -72,7 +87,8 @@ export default function DashboardHeader() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const desktopInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
@@ -91,8 +107,18 @@ export default function DashboardHeader() {
   const initials = (user?.full_name || user?.username || 'U')
     .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
 
-  const userPlan = user ? plans.find(p => p.slug === user.plan || p.id === user.plan) : null;
-  const userRank = user ? ranks.find(r => r.slug === user.rank || r.name?.toLowerCase() === user.rank?.toLowerCase()) : null;
+  // Legacy English rank names → new Spanish slugs (profiles may store old values)
+  const RANK_LEGACY_MAP: Record<string, string> = {
+    bronze: 'plata', silver: 'plata', gold: 'oro',
+    platinum: 'zafiro', diamond: 'diamante', master: 'master',
+  };
+  const userPlan = user ? plans.find(p => p.slug === user.plan || p.id === user.plan || p.name?.toLowerCase() === user.plan?.toLowerCase()) : null;
+  const userRank = user ? ranks.find(r =>
+    r.slug === user.rank ||
+    r.slug === RANK_LEGACY_MAP[user.rank || ''] ||
+    r.name?.toLowerCase() === user.rank?.toLowerCase() ||
+    r.name?.toLowerCase() === RANK_LEGACY_MAP[user.rank || '']
+  ) : null;
 
   // Close search on outside click
   useEffect(() => {
@@ -134,15 +160,18 @@ export default function DashboardHeader() {
     return () => document.removeEventListener('mousedown', handler);
   }, [notifOpen]);
 
-  // Cmd+K (Mac) / Ctrl+K (Windows/Linux) shortcut
+  // Cmd+K (Mac) / Ctrl+K (Windows/Linux) shortcut — accept both modifiers on any platform
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const isModifierPressed = isMac ? e.metaKey : e.ctrlKey;
-      if (isModifierPressed && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setSearchOpen(true);
-        setSidebarOpen(false); // Close mobile sidebar when search opens
-        setTimeout(() => inputRef.current?.focus(), 50);
+        setSidebarOpen(false);
+        // Focus the correct input based on viewport (lg breakpoint = 1024px)
+        setTimeout(() => {
+          if (window.innerWidth >= 1024) desktopInputRef.current?.focus();
+          else mobileInputRef.current?.focus();
+        }, 80);
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
@@ -153,6 +182,14 @@ export default function DashboardHeader() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [setSidebarOpen]);
+
+  // When search opens on mobile, ensure the mobile input gets focused after render
+  useEffect(() => {
+    if (searchOpen) {
+      const t = setTimeout(() => mobileInputRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [searchOpen]);
 
   const performSearch = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); return; }
@@ -346,8 +383,7 @@ export default function DashboardHeader() {
   return (
     <>
       <header className={cn(
-        'h-16 border-b border-border bg-background/98 backdrop-blur-sm flex items-center px-3 sm:px-4 lg:px-6 sticky top-0 z-30 transition-all duration-300',
-        searchOpen && 'lg:pr-2'
+        'h-16 border-b border-border bg-background flex items-center px-3 sm:px-4 lg:px-6 shrink-0 z-40'
       )}>
 
         {/* Logo — mobile only (desktop sidebar already has it) */}
@@ -356,48 +392,122 @@ export default function DashboardHeader() {
         </Link>
 
         {/* Search — large inline on desktop, icon-collapsible on mobile */}
-        <div ref={searchRef} className="relative flex-1 max-w-md mx-2 hidden lg:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onFocus={() => setSearchOpen(true)}
-              placeholder="Buscar usuarios, productos..."
-              className="w-full pl-10 pr-[5.5rem] py-2 bg-muted/50 border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/40 focus:bg-card transition-colors"
-            />
-            {/* Fixed-width right slot — prevents layout shift */}
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
-              {query ? (
-                <button
-                  onClick={() => { setQuery(''); setResults([]); inputRef.current?.focus(); }}
-                  className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <kbd className="pointer-events-none inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-muted-foreground bg-background border border-border rounded leading-none">
-                  {isMac ? (<><span className="text-[11px]">⌘</span><span>K</span></>) : 'Ctrl+K'}
-                </kbd>
-              )}
-            </div>
-          </div>
+  <div ref={searchRef} className="relative flex-1 max-w-lg mx-4 hidden lg:block">
+  <div className="relative">
+    <Search
+      className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 pointer-events-none"
+    />
 
-          {/* Results dropdown */}
-          {searchOpen && query.length >= 2 && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50">
-              <SearchResultsList />
-            </div>
+    <input
+      ref={desktopInputRef}
+      type="text"
+      value={query}
+      onChange={e => setQuery(e.target.value)}
+      onFocus={() => setSearchOpen(true)}
+      placeholder="Buscar usuarios, productos..."
+      className="
+        w-full
+        h-10
+        pl-11
+        pr-[5.5rem]
+        rounded-2xl
+        bg-card/60
+        border border-border
+        text-sm
+        text-foreground
+        placeholder:text-muted-foreground/60
+        outline-none
+        transition-all duration-200
+        hover:border-border
+        focus:bg-card
+        focus:border-primary/30
+        focus:ring-2
+        focus:ring-primary/10
+      "
+    />
+
+    {/* Fixed-width right slot — prevents layout shift */}
+    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+      {query ? (
+        <button
+          onClick={() => {
+            setQuery('');
+            setResults([]);
+            desktopInputRef.current?.focus();
+          }}
+          className="
+            w-7 h-7
+            rounded-lg
+            flex items-center justify-center
+            text-muted-foreground
+            hover:text-foreground
+            hover:bg-muted/60
+            transition-colors
+          "
+        >
+          <X className="w-4 h-4" />
+        </button>
+      ) : (
+        <kbd
+          className="
+            pointer-events-none
+            inline-flex
+            items-center
+            gap-1
+            px-2
+            py-1
+            text-[10px]
+            font-mono
+            font-medium
+            text-muted-foreground
+            bg-background/60
+            border border-border
+            rounded-md
+            leading-none
+          "
+        >
+          {isMac ? (
+            <>
+              <span className="text-[11px]">⌘</span>
+              <span>K</span>
+            </>
+          ) : (
+            'Ctrl+K'
           )}
-        </div>
+        </kbd>
+      )}
+    </div>
+  </div>
+
+  {/* Results dropdown */}
+  {searchOpen && query.length >= 2 && (
+    <div
+      className="
+        absolute
+        left-0
+        right-0
+        top-full
+        mt-2
+        bg-card
+        border border-border
+        rounded-2xl
+        shadow-2xl
+        overflow-hidden
+        z-50
+        backdrop-blur-xl
+      "
+    >
+      <SearchResultsList />
+    </div>
+  )}
+</div>
 
         {/* Right controls */}
         <div className="ml-auto flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
 
           {/* Mobile search icon */}
           <button
-            onClick={() => { setSearchOpen(v => !v); setSidebarOpen(false); setTimeout(() => inputRef.current?.focus(), 50); }}
+            onClick={() => { setSearchOpen(v => !v); setSidebarOpen(false); setTimeout(() => mobileInputRef.current?.focus(), 50); }}
             className="lg:hidden w-10 h-10 sm:w-9 sm:h-9 rounded-xl sm:rounded-full flex items-center justify-center hover:bg-muted/50 active:bg-muted text-muted-foreground active:text-foreground transition-colors"
             aria-label="Buscar"
           >
@@ -534,16 +644,22 @@ export default function DashboardHeader() {
                     <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
                     {(userPlan || userRank) && (
                       <div className="flex items-center gap-1 mt-1 flex-wrap">
-                        {userPlan && (
-                          <span className={cn('flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full', userPlan.color || 'text-amber-600 dark:text-amber-400', userPlan.bg_color || 'bg-amber-500/10')}>
-                            <Crown className="w-2.5 h-2.5" />{userPlan.name}
-                          </span>
-                        )}
-                        {userRank && (
-                          <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full', userRank.color || 'text-primary', userRank.bg_color || 'bg-primary/10')}>
-                            <RankBadgeIcon rank={userRank} className="w-2.5 h-2.5" />{userRank.name}
-                          </span>
-                        )}
+                        {userPlan && (() => {
+                          const { cls, style } = resolveBadgeColor(userPlan.color, userPlan.bg_color, 'text-amber-600 dark:text-amber-400', 'bg-amber-500/10');
+                          return (
+                            <span className={cls} style={style}>
+                              <Crown className="w-2.5 h-2.5" />{userPlan.name}
+                            </span>
+                          );
+                        })()}
+                        {userRank && (() => {
+                          const { cls, style } = resolveBadgeColor(userRank.color, userRank.bg_color, 'text-primary', 'bg-primary/10');
+                          return (
+                            <span className={cls} style={style}>
+                              <RankBadgeIcon rank={userRank} className="w-2.5 h-2.5" />{userRank.name}
+                            </span>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -591,7 +707,7 @@ export default function DashboardHeader() {
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <input
-                ref={inputRef}
+                ref={mobileInputRef}
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
